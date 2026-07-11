@@ -3,6 +3,8 @@
 import { useCallback, useEffect, useState } from "react";
 import GameShell from "../components/GameShell";
 import Scoreboard from "../components/Scoreboard";
+import { DifficultyTabs, TimerBadge, type Difficulty } from "../components/GameControls";
+import { useTimer } from "../lib/timer";
 
 type Cell = "X" | "O" | "";
 const EMPTY: Cell[] = Array(9).fill("");
@@ -31,6 +33,8 @@ export default function TicTacToe() {
   const [busy, setBusy] = useState(false);
   const [record, setRecord] = useState(BLANK);
   const [hint, setHint] = useState<number | null>(null);
+  const [difficulty, setDifficulty] = useState<Difficulty>("hard");
+  const timer = useTimer();
 
   useEffect(() => {
     const saved = localStorage.getItem("ttt-record");
@@ -54,7 +58,7 @@ export default function TicTacToe() {
     setBusy(true);
     try {
       const encoded = current.map((c) => c || "-").join("");
-      const res = await fetch(`/api/tic-tac-toe?board=${encoded}&ai=${AI}`);
+      const res = await fetch(`/api/tic-tac-toe?board=${encoded}&ai=${AI}&level=${difficulty}`);
       const data: { move: number | null } = await res.json();
       if (data.move != null) {
         setBoard((b) => {
@@ -69,12 +73,13 @@ export default function TicTacToe() {
     } finally {
       setBusy(false);
     }
-  }, []);
+  }, [difficulty]);
 
   useEffect(() => {
     if (win === HUMAN) bump("w");
     else if (win === AI) bump("l");
     else if (draw) bump("d");
+    if (over) timer.stop();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [over]);
 
@@ -90,6 +95,7 @@ export default function TicTacToe() {
   function reset(aiFirst = false) {
     setHint(null);
     setBoard(EMPTY);
+    timer.restart();
     if (aiFirst) aiMove(EMPTY);
   }
 
@@ -138,6 +144,19 @@ export default function TicTacToe() {
           You’re <b style={{ color: X_COLOR }}>X</b> · AI is{" "}
           <b style={{ color: O_COLOR }}>O</b>
         </span>
+      </div>
+
+      <div className="mt-4 flex items-center justify-between">
+        <DifficultyTabs
+          value={difficulty}
+          onChange={(d) => {
+            setDifficulty(d);
+            reset(false);
+          }}
+          accent="#7c3aed"
+          disabled={busy}
+        />
+        <TimerBadge ms={timer.ms} best={null} />
       </div>
 
       <div className="mt-4 grid grid-cols-3 gap-3 aspect-square">

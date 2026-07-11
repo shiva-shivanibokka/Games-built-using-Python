@@ -3,6 +3,8 @@
 import { useCallback, useEffect, useState } from "react";
 import GameShell from "../components/GameShell";
 import Scoreboard from "../components/Scoreboard";
+import { DifficultyTabs, TimerBadge, type Difficulty } from "../components/GameControls";
+import { useTimer } from "../lib/timer";
 
 const GRAD = "linear-gradient(135deg,#a855f7,#6366f1)";
 const PURPLE = "#a855f7";
@@ -34,6 +36,8 @@ export default function BrainTeasers() {
   const [eliminated, setEliminated] = useState<number[]>([]);
   const [correct, setCorrect] = useState(0);
   const [streak, setStreak] = useState(0);
+  const [difficulty, setDifficulty] = useState<Difficulty>("medium");
+  const { ms, stop, restart } = useTimer();
 
   useEffect(() => {
     setCorrect(parseInt(localStorage.getItem("teasers-correct") || "0", 10) || 0);
@@ -46,14 +50,15 @@ export default function BrainTeasers() {
     setEliminated([]);
     try {
       const seed = Math.floor(Math.random() * 1e9);
-      const res = await fetch(`/api/brain-teasers?seed=${seed}`);
+      const res = await fetch(`/api/brain-teasers?seed=${seed}&difficulty=${difficulty}`);
       setTeaser(await res.json());
+      restart(); // fresh teaser -> restart the per-teaser clock
     } catch {
       // API unreachable — keep the prior teaser; user can retry New teaser.
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [difficulty, restart]);
 
   useEffect(() => {
     load();
@@ -63,6 +68,7 @@ export default function BrainTeasers() {
 
   const choose = (i: number) => {
     if (locked || loading || !teaser || eliminated.includes(i)) return;
+    stop(); // answered -> freeze the clock
     setSelected(i);
     const right = i === teaser.answer;
     setCorrect((c) => {
@@ -110,6 +116,16 @@ export default function BrainTeasers() {
           localStorage.removeItem("teasers-streak");
         }}
       />
+
+      <div className="mt-4 flex items-center justify-between">
+        <DifficultyTabs
+          value={difficulty}
+          onChange={setDifficulty}
+          accent={PURPLE}
+          disabled={loading}
+        />
+        <TimerBadge ms={ms} best={null} />
+      </div>
 
       <div className="mt-5 flex items-center justify-between">
         <span className="font-display text-lg font-bold" aria-live="polite">

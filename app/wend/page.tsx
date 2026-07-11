@@ -3,6 +3,8 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import GameShell from "../components/GameShell";
 import Scoreboard from "../components/Scoreboard";
+import { DifficultyTabs, TimerBadge, type Difficulty } from "../components/GameControls";
+import { useTimer, readBest, saveBest } from "../lib/timer";
 
 type Board = {
   size: number;
@@ -35,6 +37,9 @@ export default function Wend() {
   const [solved, setSolved] = useState(0);
   const [won, setWon] = useState(false);
   const [hint, setHint] = useState<number | null>(null);
+  const [difficulty, setDifficulty] = useState<Difficulty>("medium");
+  const [best, setBest] = useState<number | null>(null);
+  const timer = useTimer();
   const drawing = useRef(false);
 
   useEffect(() => {
@@ -42,19 +47,28 @@ export default function Wend() {
     if (saved) setSolved(parseInt(saved, 10) || 0);
   }, []);
 
-  const load = useCallback(async (seed?: number) => {
-    const s = seed ?? Math.floor(Math.random() * 2 ** 31);
-    setTrace([]);
-    setFound([]);
-    setWon(false);
-    setHint(null);
-    try {
-      const res = await fetch(`/api/wend?seed=${s}`);
-      setBoard(await res.json());
-    } catch {
-      // API unreachable — keep current board.
-    }
-  }, []);
+  useEffect(() => {
+    setBest(readBest("wend", difficulty));
+  }, [difficulty]);
+
+  const load = useCallback(
+    async (seed?: number) => {
+      const s = seed ?? Math.floor(Math.random() * 2 ** 31);
+      setTrace([]);
+      setFound([]);
+      setWon(false);
+      setHint(null);
+      try {
+        const res = await fetch(`/api/wend?seed=${s}&difficulty=${difficulty}`);
+        setBoard(await res.json());
+        timer.restart();
+      } catch {
+        // API unreachable — keep current board.
+      }
+    },
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [difficulty]
+  );
 
   useEffect(() => {
     load();
@@ -113,12 +127,15 @@ export default function Wend() {
     if (!board || won) return;
     if (found.length === board.words.length) {
       setWon(true);
+      timer.stop();
+      setBest(saveBest("wend", timer.ms, difficulty));
       setSolved((s) => {
         const next = s + 1;
         localStorage.setItem("wend-solved", String(next));
         return next;
       });
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [found, board, won]);
 
   // Hint: highlight the starting cell of a still-unfound word. Tapping again
@@ -186,6 +203,11 @@ export default function Wend() {
           localStorage.removeItem("wend-solved");
         }}
       />
+
+      <div className="mt-5 flex items-center justify-between">
+        <DifficultyTabs value={difficulty} onChange={setDifficulty} accent={SKY} />
+        <TimerBadge ms={timer.ms} best={best} />
+      </div>
 
       <div className="mt-5 flex items-center justify-between">
         <span className="font-display text-lg font-bold" aria-live="polite">

@@ -3,13 +3,20 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import GameShell from "../components/GameShell";
 import Scoreboard from "../components/Scoreboard";
+import { DifficultyTabs, TimerBadge, type Difficulty } from "../components/GameControls";
+import { useTimer, readBest, saveBest } from "../lib/timer";
 
 const GRAD = "linear-gradient(135deg,#eab308,#84cc16)";
 const LIT = "#eab308";
 
+const SIZES: Record<Difficulty, number> = { easy: 4, medium: 5, hard: 6 };
+
 type Puzzle = { size: number; board: number[]; solution: number[] };
 
 export default function LightsOut() {
+  const [difficulty, setDifficulty] = useState<Difficulty>("medium");
+  const [best, setBest] = useState<number | null>(null);
+  const timer = useTimer();
   const [size, setSize] = useState(5);
   const [cells, setCells] = useState<number[]>([]);
   const [solution, setSolution] = useState<number[]>([]);
@@ -24,28 +31,38 @@ export default function LightsOut() {
     if (s) setSolved(parseInt(s, 10) || 0);
   }, []);
 
-  const load = useCallback(async () => {
-    setLoading(true);
-    setHint(null);
-    try {
-      const seed = Math.floor(Math.random() * 1e9);
-      const res = await fetch(`/api/lights-out?seed=${seed}&size=5`);
-      const data: Puzzle = await res.json();
-      setSize(data.size);
-      setCells(data.board);
-      setSolution(data.solution);
-      setPressed(new Array(data.board.length).fill(0));
-      setMoves(0);
-    } catch {
-      // API unreachable — leave prior board; user can retry New game.
-    } finally {
-      setLoading(false);
-    }
-  }, []);
+  const load = useCallback(
+    async (diff: Difficulty) => {
+      setLoading(true);
+      setHint(null);
+      try {
+        const seed = Math.floor(Math.random() * 1e9);
+        const res = await fetch(`/api/lights-out?seed=${seed}&size=${SIZES[diff]}`);
+        const data: Puzzle = await res.json();
+        setSize(data.size);
+        setCells(data.board);
+        setSolution(data.solution);
+        setPressed(new Array(data.board.length).fill(0));
+        setMoves(0);
+        timer.restart();
+      } catch {
+        // API unreachable — leave prior board; user can retry New game.
+      } finally {
+        setLoading(false);
+      }
+    },
+    [timer]
+  );
 
   useEffect(() => {
-    load();
-  }, [load]);
+    load("medium");
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  // Track the best time for the active difficulty.
+  useEffect(() => {
+    setBest(readBest("lights-out", difficulty));
+  }, [difficulty]);
 
   const won = cells.length > 0 && cells.every((c) => c === 0);
 
@@ -54,6 +71,8 @@ export default function LightsOut() {
   useEffect(() => {
     if (won && !wonRef.current) {
       wonRef.current = true;
+      timer.stop();
+      setBest(saveBest("lights-out", timer.ms, difficulty));
       setSolved((s) => {
         const next = s + 1;
         localStorage.setItem("lightsout-solved", String(next));
@@ -62,6 +81,7 @@ export default function LightsOut() {
     } else if (!won) {
       wonRef.current = false;
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [won]);
 
   const press = useCallback(
@@ -121,7 +141,20 @@ export default function LightsOut() {
         }}
       />
 
-      <div className="mt-5">
+      <div className="mt-5 flex flex-wrap items-center justify-between gap-3">
+        <DifficultyTabs
+          value={difficulty}
+          onChange={(d) => {
+            setDifficulty(d);
+            load(d);
+          }}
+          accent={LIT}
+          disabled={loading}
+        />
+        <TimerBadge ms={timer.ms} best={best} />
+      </div>
+
+      <div className="mt-4">
         <span className="font-display text-lg font-bold" aria-live="polite">
           {status}
         </span>
@@ -162,7 +195,7 @@ export default function LightsOut() {
 
       <div className="mt-6 flex gap-3">
         <button
-          onClick={load}
+          onClick={() => load(difficulty)}
           className="rounded-full px-5 py-2.5 text-sm font-semibold text-white shadow-lg transition-transform hover:scale-105"
           style={{ backgroundImage: GRAD }}
         >

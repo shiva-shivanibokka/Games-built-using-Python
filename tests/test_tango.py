@@ -4,6 +4,7 @@ from games.tango import generate, count_solutions
 
 SIZE = 6
 SEEDS = [1, 7, 42, 123, 2024, 999999]
+DIFFICULTIES = ["easy", "medium", "hard"]
 
 
 def _rules_ok(sol: str) -> bool:
@@ -51,3 +52,14 @@ def test_puzzle_is_uniquely_solvable():
 def test_determinism():
     for seed in SEEDS:
         assert generate(seed=seed) == generate(seed=seed)
+
+
+def test_each_difficulty_valid_and_unique():
+    for difficulty in DIFFICULTIES:
+        for seed in SEEDS:
+            p = generate(seed=seed, difficulty=difficulty)
+            assert _rules_ok(p["solution"])
+            assert _edges_ok(p["solution"], p["edges"])
+            for gv in p["givens"]:
+                assert p["solution"][gv["r"] * SIZE + gv["c"]] == gv["val"]
+            assert count_solutions(p["givens"], p["edges"], cap=2) == 1

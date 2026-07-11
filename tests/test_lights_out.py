@@ -7,29 +7,35 @@ from games.lights_out import apply_presses, generate, solve
 
 
 SEEDS = [0, 1, 2, 7, 42, 123, 999, 2024]
+SIZES = [4, 5, 6]  # easy / medium / hard
 
 
 def test_board_not_all_off():
-    for s in SEEDS:
-        g = generate(seed=s, size=5)
-        assert any(g["board"]), f"seed {s} produced an all-off board"
+    for size in SIZES:
+        for s in SEEDS:
+            g = generate(seed=s, size=size)
+            assert g["size"] == size
+            assert any(g["board"]), f"size {size} seed {s} produced an all-off board"
 
 
 def test_solution_clears_board():
-    for s in SEEDS:
-        g = generate(seed=s, size=5)
-        result = apply_presses(g["board"], g["solution"], g["size"])
-        assert result == [0] * (g["size"] ** 2), f"solution failed for seed {s}"
+    for size in SIZES:
+        for s in SEEDS:
+            g = generate(seed=s, size=size)
+            result = apply_presses(g["board"], g["solution"], g["size"])
+            assert result == [0] * (size * size), f"solution failed for size {size} seed {s}"
 
 
 def test_solver_valid():
-    for s in SEEDS:
-        g = generate(seed=s, size=5)
-        presses = solve(g["board"], g["size"])
-        assert presses is not None
-        assert apply_presses(g["board"], presses, g["size"]) == [0] * 25
+    for size in SIZES:
+        for s in SEEDS:
+            g = generate(seed=s, size=size)
+            presses = solve(g["board"], g["size"])
+            assert presses is not None
+            assert apply_presses(g["board"], presses, g["size"]) == [0] * (size * size)
 
 
 def test_deterministic():
-    for s in SEEDS:
-        assert generate(seed=s, size=5) == generate(seed=s, size=5)
+    for size in SIZES:
+        for s in SEEDS:
+            assert generate(seed=s, size=size) == generate(seed=s, size=size)

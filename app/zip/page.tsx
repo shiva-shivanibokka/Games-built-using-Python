@@ -3,6 +3,8 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import GameShell from "../components/GameShell";
 import Scoreboard from "../components/Scoreboard";
+import { DifficultyTabs, TimerBadge, type Difficulty } from "../components/GameControls";
+import { useTimer, readBest, saveBest } from "../lib/timer";
 
 type Num = { r: number; c: number; n: number };
 type Board = { size: number; numbers: Num[]; solution: number[][]; seed: number };
@@ -10,6 +12,9 @@ type Board = { size: number; numbers: Num[]; solution: number[][]; seed: number 
 const GREEN = "#22c55e";
 const TEAL = "#14b8a6";
 const GRADIENT = "linear-gradient(135deg,#22c55e,#14b8a6)";
+
+// easy / medium / hard → grid size (API clamps to 4..8).
+const SIZES: Record<Difficulty, number> = { easy: 5, medium: 6, hard: 7 };
 
 const rc = (idx: number, size: number) => [Math.floor(idx / size), idx % size];
 const adjacent = (a: number, b: number, size: number) => {
@@ -24,11 +29,15 @@ export default function Zip() {
   const [solved, setSolved] = useState(0);
   const [won, setWon] = useState(false);
   const [hint, setHint] = useState<number | null>(null);
+  const [difficulty, setDifficulty] = useState<Difficulty>("medium");
+  const [best, setBest] = useState<number | null>(null);
 
+  const timer = useTimer();
   const gridRef = useRef<HTMLDivElement>(null);
   const cellRefs = useRef<(HTMLButtonElement | null)[]>([]);
   const drawing = useRef(false);
   const [points, setPoints] = useState<string>("");
+  const [stroke, setStroke] = useState(14);
 
   useEffect(() => {
     const saved = localStorage.getItem("zip-solved");
@@ -41,16 +50,20 @@ export default function Zip() {
     setWon(false);
     setHint(null);
     try {
-      const res = await fetch(`/api/zip?seed=${s}&size=6`);
+      const res = await fetch(`/api/zip?seed=${s}&size=${SIZES[difficulty]}`);
       setBoard(await res.json());
+      setBest(readBest("zip", difficulty));
+      timer.restart();
     } catch {
       // API unreachable — leave the current board.
     }
-  }, []);
+  }, [difficulty, timer]);
 
+  // Load a fresh board on mount and whenever the difficulty changes.
   useEffect(() => {
     load();
-  }, [load]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [difficulty]);
 
   // Checkpoint number for a cell index, or undefined.
   const checkAt = (idx: number): number | undefined => {
@@ -99,6 +112,8 @@ export default function Zip() {
     const ok = order.length === board.numbers.length && order.every((n, i) => n === i + 1);
     if (ok) {
       setWon(true);
+      timer.stop();
+      setBest(saveBest("zip", timer.ms, difficulty));
       setSolved((s) => {
         const next = s + 1;
         localStorage.setItem("zip-solved", String(next));
@@ -108,7 +123,7 @@ export default function Zip() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [path, board, won]);
 
-  // Recompute the trail polyline from measured cell centers.
+  // Recompute the trail polyline + stroke width from measured cell geometry.
   useEffect(() => {
     const g = gridRef.current;
     if (!g || path.length === 0) {
@@ -124,6 +139,8 @@ export default function Zip() {
       .filter(Boolean)
       .join(" ");
     setPoints(pts);
+    const sample = cellRefs.current.find(Boolean);
+    if (sample) setStroke(Math.max(8, sample.offsetWidth * 0.44));
   }, [path, board]);
 
   useEffect(() => {
@@ -153,7 +170,7 @@ export default function Zip() {
     drawing.current = false;
   };
 
-  const size = board?.size ?? 6;
+  const size = board?.size ?? SIZES[difficulty];
   const pathSet = new Set(path);
   const status = !board
     ? "Loading…"
@@ -175,7 +192,17 @@ export default function Zip() {
         }}
       />
 
-      <div className="mt-5 flex items-center justify-between">
+      <div className="mt-5 flex items-center justify-between gap-3">
+        <DifficultyTabs
+          value={difficulty}
+          onChange={setDifficulty}
+          accent={GREEN}
+          disabled={!board}
+        />
+        <TimerBadge ms={timer.ms} best={best} />
+      </div>
+
+      <div className="mt-4 flex items-center justify-between">
         <span className="font-display text-lg font-bold" aria-live="polite">
           {status}
         </span>
@@ -192,12 +219,41 @@ export default function Zip() {
         onPointerLeave={stop}
         onPointerCancel={stop}
         className="relative mt-4 grid aspect-square touch-none select-none gap-2"
-        style={{ gridTemplateColumns: `repeat(${size}, minmax(0, 1fr))` }}
+        style={{
+          gridTemplateColumns: `repeat(${size}, minmax(0, 1fr))`,
+          gridTemplateRows: `repeat(${size}, minmax(0, 1fr))`,
+        }}
       >
-        {/* Trail overlay */}
+        {/* Interactive cell boxes (bottom layer). */}
+        {Array.from({ length: size * size }, (_, idx) => {
+          const inPath = pathSet.has(idx);
+          const isHead = path[path.length - 1] === idx;
+          return (
+            <button
+              key={idx}
+              data-idx={idx}
+              ref={(el) => {
+                cellRefs.current[idx] = el;
+              }}
+              onPointerDown={(e) => onPointerDown(e, idx)}
+              aria-label={`cell ${idx + 1}${checkAt(idx) ? `, checkpoint ${checkAt(idx)}` : ""}${inPath ? ", on path" : ""}`}
+              className="pop-card relative transition-transform"
+              style={{
+                zIndex: 1,
+                background: inPath ? "rgba(34,197,94,0.10)" : undefined,
+                boxShadow: isHead ? `0 0 0 2px ${GREEN}` : undefined,
+                outline: hint === idx ? `3px solid ${GREEN}` : undefined,
+                outlineOffset: hint === idx ? "2px" : undefined,
+              }}
+            />
+          );
+        })}
+
+        {/* Continuous trail: one thick gradient line through visited centers,
+            sitting above the boxes but below the numbers. */}
         <svg
           className="pointer-events-none absolute inset-0 h-full w-full"
-          style={{ zIndex: 1 }}
+          style={{ zIndex: 2 }}
         >
           <defs>
             <linearGradient id="zip-trail" x1="0" y1="0" x2="1" y2="1">
@@ -210,45 +266,38 @@ export default function Zip() {
               points={points}
               fill="none"
               stroke="url(#zip-trail)"
-              strokeWidth={14}
+              strokeWidth={stroke}
               strokeLinecap="round"
               strokeLinejoin="round"
-              opacity={0.85}
             />
           )}
         </svg>
 
-        {Array.from({ length: size * size }, (_, idx) => {
-          const n = checkAt(idx);
-          const inPath = pathSet.has(idx);
-          const isHead = path[path.length - 1] === idx;
-          return (
-            <button
-              key={idx}
-              data-idx={idx}
-              ref={(el) => {
-                cellRefs.current[idx] = el;
-              }}
-              onPointerDown={(e) => onPointerDown(e, idx)}
-              aria-label={`cell ${idx + 1}${n ? `, checkpoint ${n}` : ""}${inPath ? ", on path" : ""}`}
-              className="pop-card relative flex items-center justify-center text-2xl font-display font-extrabold transition-transform"
-              style={{
-                zIndex: 2,
-                color: n ? "#fff" : TEAL,
-                background: n
-                  ? GRADIENT
-                  : inPath
-                    ? "rgba(34,197,94,0.14)"
-                    : undefined,
-                boxShadow: isHead ? `0 0 0 2px ${GREEN}` : undefined,
-                outline: hint === idx ? `3px solid ${GREEN}` : undefined,
-                outlineOffset: hint === idx ? "2px" : undefined,
-              }}
-            >
-              {n ?? ""}
-            </button>
-          );
-        })}
+        {/* Checkpoint numbers overlay (top layer), aligned to the same grid. */}
+        <div
+          className="pointer-events-none absolute inset-0 grid gap-2"
+          style={{
+            zIndex: 3,
+            gridTemplateColumns: `repeat(${size}, minmax(0, 1fr))`,
+            gridTemplateRows: `repeat(${size}, minmax(0, 1fr))`,
+          }}
+        >
+          {Array.from({ length: size * size }, (_, idx) => {
+            const n = checkAt(idx);
+            return (
+              <div key={idx} className="flex items-center justify-center">
+                {n != null && (
+                  <span
+                    className="flex h-9 w-9 items-center justify-center rounded-full text-lg font-display font-extrabold text-white shadow-lg"
+                    style={{ backgroundImage: GRADIENT, boxShadow: "0 2px 8px rgba(0,0,0,0.35)" }}
+                  >
+                    {n}
+                  </span>
+                )}
+              </div>
+            );
+          })}
+        </div>
       </div>
 
       <div className="mt-6 flex gap-3">

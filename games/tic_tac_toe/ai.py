@@ -12,6 +12,8 @@ can and forces a draw otherwise.
 
 from __future__ import annotations
 
+import random
+
 WINS = (
     (0, 1, 2), (3, 4, 5), (6, 7, 8),  # rows
     (0, 3, 6), (1, 4, 7), (2, 5, 8),  # cols
@@ -73,6 +75,33 @@ def best_move(board: list[str], ai: str = "O") -> int | None:
         return None
     _, move = _minimax(list(board), ai, ai)
     return move
+
+
+def _wins_at(board: list[str], i: int, player: str) -> bool:
+    board[i] = player
+    won = winner(board) == player
+    board[i] = ""
+    return won
+
+
+def move(board: list[str], ai: str = "O", level: str = "hard") -> int | None:
+    """AI move at the given difficulty. easy=random, medium=win/block/random,
+    hard=perfect minimax. Falls back to hard for unknown levels."""
+    if winner(board) or is_full(board):
+        return None
+    empties = [i for i, c in enumerate(board) if not c]
+    if level == "easy":
+        return random.choice(empties)
+    if level == "medium":
+        for i in empties:  # win if we can
+            if _wins_at(board, i, ai):
+                return i
+        opp = _other(ai)
+        for i in empties:  # else block the opponent
+            if _wins_at(board, i, opp):
+                return i
+        return random.choice(empties)
+    return best_move(board, ai)  # hard
 
 
 if __name__ == "__main__":

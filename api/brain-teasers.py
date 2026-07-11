@@ -1,8 +1,8 @@
 """Vercel Python serverless function: Brain Teasers generator.
 
-GET /api/brain-teasers?seed=<int optional>&type=<sequences|cryptarithm|logic|oddoneout optional>
+GET /api/brain-teasers?seed=<int optional>&type=<sequences|cryptarithm|logic|oddoneout optional>&difficulty=<easy|medium|hard optional>
 
-Response JSON: { type, prompt, options[4], answer, explanation, seed, kind }
+Response JSON: { type, prompt, options[4], answer, explanation, seed, kind, difficulty }
 """
 
 import json
@@ -20,13 +20,14 @@ class handler(BaseHTTPRequestHandler):
     def do_GET(self):
         params = parse_qs(urlparse(self.path).query)
         kind = params.get("type", [None])[0]
+        difficulty = params.get("difficulty", ["medium"])[0]
         raw_seed = params.get("seed", [None])[0]
         try:
             seed = int(raw_seed) if raw_seed is not None else None
         except ValueError:
             seed = None
 
-        result = generate(seed=seed, kind=kind)
+        result = generate(seed=seed, kind=kind, difficulty=difficulty)
         payload = json.dumps(result).encode()
         self.send_response(200)
         self.send_header("Content-Type", "application/json")

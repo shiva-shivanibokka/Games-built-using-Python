@@ -16,13 +16,16 @@ practice it lands within a handful of attempts.
 import random
 
 SIZES = (4, 5, 6)
+_DIFFICULTY_SIZE = {"easy": 4, "medium": 5, "hard": 6}
 MINLEN, MAXLEN = 3, 6  # words.py provides these lengths
 _DIRS = ((-1, 0), (1, 0), (0, -1), (0, 1))
 
 
-def _pick_shape(rng):
-    """Pick (size, lengths) — lengths in [3,6], count 3-5, summing to open cells."""
-    size = rng.choice(SIZES)
+def _pick_shape(rng, size=None):
+    """Pick (size, lengths) — lengths in [3,6], count 3-5, summing to open cells.
+    `size` fixes the grid dimension (from difficulty); None picks one at random."""
+    if size is None:
+        size = rng.choice(SIZES)
     cells = size * size
     walls = rng.randint(max(2, round(cells * 0.16)), round(cells * 0.34))
     open_cells = cells - walls
@@ -92,16 +95,18 @@ def _layout(rng, size, lengths):
     return paths
 
 
-def generate(seed=None):
+def generate(seed=None, difficulty=None):
     from .words import WORDS
 
     if seed is None:
         seed = random.randrange(2 ** 31)
     rng = random.Random(seed)
 
+    fixed_size = _DIFFICULTY_SIZE.get(difficulty)  # None => auto-random size
+
     size = paths = None
     for _ in range(20000):
-        size, lengths = _pick_shape(rng)
+        size, lengths = _pick_shape(rng, fixed_size)
         paths = _layout(rng, size, lengths)
         if paths is not None:
             break

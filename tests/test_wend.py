@@ -48,6 +48,15 @@ def test_size_variety():
     assert len(sizes) >= 2
 
 
+def test_difficulty_fixes_size():
+    expected = {"easy": 4, "medium": 5, "hard": 6}
+    for difficulty, size in expected.items():
+        for seed in SEEDS:
+            p = generate(seed=seed, difficulty=difficulty)
+            assert p["size"] == size, f"{difficulty} seed {seed} gave {p['size']}"
+            assert verify(p), f"invalid {difficulty} puzzle for seed {seed}"
+
+
 def test_random_seed_is_valid():
     # No seed -> still always a valid, solvable puzzle.
     for _ in range(20):

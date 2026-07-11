@@ -3,8 +3,9 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import GameShell from "../components/GameShell";
 import Scoreboard from "../components/Scoreboard";
+import { DifficultyTabs, TimerBadge, type Difficulty } from "../components/GameControls";
+import { useTimer, readBest, saveBest } from "../lib/timer";
 
-type Difficulty = "easy" | "medium" | "hard";
 const GRAD = "linear-gradient(135deg,#06b6d4,#3b82f6)";
 const ACCENT = "#06b6d4";
 
@@ -37,30 +38,37 @@ export default function Sudoku() {
   const [solved, setSolved] = useState(0);
   const [mistakes, setMistakes] = useState(0);
   const [hint, setHint] = useState<number | null>(null);
+  const [best, setBest] = useState<number | null>(null);
   const gridRef = useRef<HTMLDivElement>(null);
+  const timer = useTimer();
 
   useEffect(() => {
     const s = localStorage.getItem("sudoku-solved");
     if (s) setSolved(parseInt(s, 10) || 0);
   }, []);
 
-  const load = useCallback(async (diff: Difficulty) => {
-    setLoading(true);
-    setSelected(null);
-    try {
-      const seed = Math.floor(Math.random() * 1e9);
-      const res = await fetch(`/api/sudoku?difficulty=${diff}&seed=${seed}`);
-      const data: Puzzle = await res.json();
-      setPuzzle(data);
-      setGiven([...data.puzzle].map((c) => c !== "."));
-      setValues([...data.puzzle].map((c) => (c === "." ? "" : c)));
-      setMistakes(0);
-    } catch {
-      // API unreachable — leave prior board; user can retry New game.
-    } finally {
-      setLoading(false);
-    }
-  }, []);
+  const load = useCallback(
+    async (diff: Difficulty) => {
+      setLoading(true);
+      setSelected(null);
+      try {
+        const seed = Math.floor(Math.random() * 1e9);
+        const res = await fetch(`/api/sudoku?difficulty=${diff}&seed=${seed}`);
+        const data: Puzzle = await res.json();
+        setPuzzle(data);
+        setGiven([...data.puzzle].map((c) => c !== "."));
+        setValues([...data.puzzle].map((c) => (c === "." ? "" : c)));
+        setMistakes(0);
+        setBest(readBest("sudoku", diff));
+        timer.restart();
+      } catch {
+        // API unreachable — leave prior board; user can retry New game.
+      } finally {
+        setLoading(false);
+      }
+    },
+    [timer.restart]
+  );
 
   useEffect(() => {
     load("easy");
@@ -76,6 +84,8 @@ export default function Sudoku() {
   useEffect(() => {
     if (won && !wonRef.current) {
       wonRef.current = true;
+      timer.stop();
+      setBest(saveBest("sudoku", timer.ms, difficulty));
       setSolved((s) => {
         const next = s + 1;
         localStorage.setItem("sudoku-solved", String(next));
@@ -84,7 +94,7 @@ export default function Sudoku() {
     } else if (!won) {
       wonRef.current = false;
     }
-  }, [won]);
+  }, [won, timer.stop, timer.ms, difficulty]);
 
   const setCell = useCallback(
     (i: number, digit: string) => {
@@ -126,12 +136,17 @@ export default function Sudoku() {
     []
   );
 
+  // Digits placed 9 times are complete and get retired from entry.
+  const digitCounts: Record<string, number> = {};
+  for (const v of values) if (v) digitCounts[v] = (digitCounts[v] || 0) + 1;
+  const isComplete = (d: string) => (digitCounts[d] || 0) >= 9;
+
   const onKey = useCallback(
     (e: React.KeyboardEvent) => {
       if (selected == null) return;
       const k = e.key;
       if (k >= "1" && k <= "9") {
-        setCell(selected, k);
+        if (values.filter((v) => v === k).length < 9) setCell(selected, k);
         e.preventDefault();
       } else if (k === "Backspace" || k === "Delete" || k === "0") {
         setCell(selected, "");
@@ -150,7 +165,7 @@ export default function Sudoku() {
         e.preventDefault();
       }
     },
-    [selected, setCell, move]
+    [selected, setCell, move, values]
   );
 
   // Conflict set: cells whose value duplicates a peer's value.
@@ -188,28 +203,20 @@ export default function Sudoku() {
         }}
       />
 
-      <div className="mt-5 flex items-center justify-between gap-3">
+      <div className="mt-5 flex flex-wrap items-center justify-between gap-3">
         <span className="font-display text-lg font-bold" aria-live="polite">
           {status}
         </span>
-        <div className="flex gap-1 rounded-full border border-border p-1 text-xs">
-          {(["easy", "medium", "hard"] as Difficulty[]).map((d) => (
-            <button
-              key={d}
-              onClick={() => {
-                setDifficulty(d);
-                load(d);
-              }}
-              className="rounded-full px-3 py-1 font-medium capitalize transition-colors"
-              style={
-                difficulty === d
-                  ? { backgroundImage: GRAD, color: "#fff" }
-                  : undefined
-              }
-            >
-              {d}
-            </button>
-          ))}
+        <div className="flex items-center gap-3">
+          <TimerBadge ms={timer.ms} best={best} />
+          <DifficultyTabs
+            value={difficulty}
+            onChange={(d) => {
+              setDifficulty(d);
+              load(d);
+            }}
+            accent={ACCENT}
+          />
         </div>
       </div>
 
@@ -276,8 +283,12 @@ export default function Sudoku() {
         {["1", "2", "3", "4", "5", "6", "7", "8", "9"].map((d) => (
           <button
             key={d}
-            onClick={() => selected != null && setCell(selected, d)}
-            disabled={selected == null || (selected != null && given[selected])}
+            onClick={() => selected != null && !isComplete(d) && setCell(selected, d)}
+            disabled={
+              isComplete(d) ||
+              selected == null ||
+              (selected != null && given[selected])
+            }
             className="pop-card flex items-center justify-center py-2 font-display text-lg font-bold transition-transform enabled:hover:scale-105 disabled:opacity-40"
             style={{ color: ACCENT }}
           >

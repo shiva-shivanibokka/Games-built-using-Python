@@ -3,6 +3,8 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import GameShell from "../components/GameShell";
 import Scoreboard from "../components/Scoreboard";
+import { DifficultyTabs, TimerBadge, type Difficulty } from "../components/GameControls";
+import { useTimer, readBest, saveBest } from "../lib/timer";
 
 type Val = "S" | "M" | "";
 type Given = { r: number; c: number; val: "S" | "M" };
@@ -72,29 +74,41 @@ export default function Tango() {
   const [solved, setSolved] = useState(0);
   const [won, setWon] = useState(false);
   const [hint, setHint] = useState<number | null>(null);
+  const [difficulty, setDifficulty] = useState<Difficulty>("medium");
+  const [best, setBest] = useState<number | null>(null);
+  const timer = useTimer();
 
   useEffect(() => {
     const saved = localStorage.getItem("tango-solved");
     if (saved) setSolved(parseInt(saved, 10) || 0);
   }, []);
 
-  const load = useCallback(async (seed: number) => {
-    setPuzzle(null);
-    setWon(false);
-    setHint(null);
-    try {
-      const res = await fetch(`/api/tango?seed=${seed}`);
-      const data: Puzzle = await res.json();
-      setPuzzle(data);
-      setBoard(boardFromGivens(data.givens));
-    } catch {
-      // API unreachable — leave the loading state; "New game" can retry.
-    }
-  }, []);
+  useEffect(() => {
+    setBest(readBest("tango", difficulty));
+  }, [difficulty]);
+
+  const load = useCallback(
+    async (seed: number) => {
+      setPuzzle(null);
+      setWon(false);
+      setHint(null);
+      try {
+        const res = await fetch(`/api/tango?seed=${seed}&difficulty=${difficulty}`);
+        const data: Puzzle = await res.json();
+        setPuzzle(data);
+        setBoard(boardFromGivens(data.givens));
+        timer.restart();
+      } catch {
+        // API unreachable — leave the loading state; "New game" can retry.
+      }
+    },
+    [difficulty, timer],
+  );
 
   useEffect(() => {
     load(Math.floor(Math.random() * 1_000_000_000));
-  }, [load]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [difficulty]);
 
   const givenSet = useMemo(
     () => new Set((puzzle?.givens ?? []).map((g) => g.r * SIZE + g.c)),
@@ -111,13 +125,15 @@ export default function Tango() {
   useEffect(() => {
     if (win && !won) {
       setWon(true);
+      timer.stop();
+      setBest(saveBest("tango", timer.ms, difficulty));
       setSolved((s) => {
         const next = s + 1;
         localStorage.setItem("tango-solved", String(next));
         return next;
       });
     }
-  }, [win, won]);
+  }, [win, won, timer, difficulty]);
 
   function play(i: number) {
     if (won || givenSet.has(i)) return;
@@ -163,6 +179,16 @@ export default function Tango() {
       />
 
       <div className="mt-5 flex items-center justify-between gap-3">
+        <DifficultyTabs
+          value={difficulty}
+          onChange={setDifficulty}
+          accent={SUN}
+          disabled={!puzzle}
+        />
+        <TimerBadge ms={timer.ms} best={best} />
+      </div>
+
+      <div className="mt-4 flex items-center justify-between gap-3">
         <span className="font-display text-lg font-bold" aria-live="polite">
           {status}
         </span>

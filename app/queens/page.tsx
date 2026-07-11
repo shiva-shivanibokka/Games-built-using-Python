@@ -3,9 +3,14 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import GameShell from "../components/GameShell";
 import Scoreboard from "../components/Scoreboard";
+import { DifficultyTabs, TimerBadge, type Difficulty } from "../components/GameControls";
+import { useTimer, readBest, saveBest } from "../lib/timer";
 
 const GRAD = "linear-gradient(135deg,#f43f5e,#a21caf)";
 const ACCENT = "#f43f5e";
+
+// Grid size per difficulty. Hard=9 stays fast thanks to the generator's carve step.
+const SIZES: Record<Difficulty, number> = { easy: 7, medium: 8, hard: 9 };
 
 type Puzzle = { size: number; regions: number[]; solution: number[][]; seed: number };
 // Cell states: 0 empty, 1 X-mark (note), 2 crown.
@@ -20,6 +25,9 @@ export default function Queens() {
   const [loading, setLoading] = useState(true);
   const [solved, setSolved] = useState(0);
   const [hint, setHint] = useState<number | null>(null);
+  const [difficulty, setDifficulty] = useState<Difficulty>("medium");
+  const [best, setBest] = useState<number | null>(null);
+  const timer = useTimer();
   const gridRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -27,22 +35,27 @@ export default function Queens() {
     if (s) setSolved(parseInt(s, 10) || 0);
   }, []);
 
+  useEffect(() => {
+    setBest(readBest("queens", difficulty));
+  }, [difficulty]);
+
   const load = useCallback(async () => {
     setLoading(true);
     setSelected(null);
     setHint(null);
     try {
       const seed = Math.floor(Math.random() * 1e9);
-      const res = await fetch(`/api/queens?seed=${seed}&size=8`);
+      const res = await fetch(`/api/queens?seed=${seed}&size=${SIZES[difficulty]}`);
       const data: Puzzle = await res.json();
       setPuzzle(data);
       setMarks(new Array(data.size * data.size).fill(0) as Mark[]);
+      timer.restart();
     } catch {
       // API unreachable — keep prior board; user can retry New game.
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [difficulty, timer.restart]);
 
   useEffect(() => {
     load();
@@ -112,6 +125,8 @@ export default function Queens() {
   useEffect(() => {
     if (won && !wonRef.current) {
       wonRef.current = true;
+      timer.stop();
+      setBest(saveBest("queens", timer.ms, difficulty));
       setSolved((s) => {
         const next = s + 1;
         localStorage.setItem("queens-solved", String(next));
@@ -120,7 +135,7 @@ export default function Queens() {
     } else if (!won) {
       wonRef.current = false;
     }
-  }, [won]);
+  }, [won, difficulty, timer.stop, timer.ms]);
 
   const move = useCallback(
     (i: number, dr: number, dc: number) => {
@@ -173,6 +188,16 @@ export default function Queens() {
       />
 
       <div className="mt-5 flex items-center justify-between gap-3">
+        <DifficultyTabs
+          value={difficulty}
+          onChange={setDifficulty}
+          accent={ACCENT}
+          disabled={loading}
+        />
+        <TimerBadge ms={timer.ms} best={best} />
+      </div>
+
+      <div className="mt-4 flex items-center justify-between gap-3">
         <span className="font-display text-lg font-bold" aria-live="polite">
           {status}
         </span>

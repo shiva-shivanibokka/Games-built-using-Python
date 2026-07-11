@@ -1,9 +1,14 @@
-"""Queens generator/solver invariants across several seeds."""
+"""Queens generator/solver invariants across several seeds and supported sizes."""
+
+import time
+
+import pytest
 
 from games.queens import generate, count_solutions, solve
 
 SEEDS = [1, 7, 42, 123, 2024, 999999]
-SIZE = 8
+# Difficulty grid sizes exposed by the UI: easy=7, medium=8, hard=9.
+SIZES = [7, 8, 9]
 
 
 def _regions_are_n_contiguous(regions, size):
@@ -43,27 +48,38 @@ def _placement_is_valid(solution, regions, size):
             assert max(abs(r1 - r2), abs(c1 - c2)) >= 2
 
 
-def test_regions_contiguous_and_cover():
+@pytest.mark.parametrize("size", SIZES)
+def test_regions_contiguous_and_cover(size):
     for seed in SEEDS:
-        p = generate(seed=seed, size=SIZE)
+        p = generate(seed=seed, size=size)
         _regions_are_n_contiguous(p["regions"], p["size"])
 
 
-def test_solution_valid():
+@pytest.mark.parametrize("size", SIZES)
+def test_solution_valid(size):
     for seed in SEEDS:
-        p = generate(seed=seed, size=SIZE)
+        p = generate(seed=seed, size=size)
         _placement_is_valid(p["solution"], p["regions"], p["size"])
 
 
-def test_unique_solution():
+@pytest.mark.parametrize("size", SIZES)
+def test_unique_solution(size):
     for seed in SEEDS:
-        p = generate(seed=seed, size=SIZE)
+        p = generate(seed=seed, size=size)
         assert count_solutions(p["regions"], p["size"], cap=2) == 1
-        # solver must find a solution that matches the reported one
-        found = solve(p["regions"], p["size"])
-        assert found is not None
+        # the unique solution the solver finds must match the reported one
+        assert solve(p["regions"], p["size"]) == p["solution"]
 
 
-def test_determinism():
+@pytest.mark.parametrize("size", SIZES)
+def test_determinism(size):
     for seed in SEEDS:
-        assert generate(seed=seed, size=SIZE) == generate(seed=seed, size=SIZE)
+        assert generate(seed=seed, size=size) == generate(seed=seed, size=size)
+
+
+def test_hard_generation_is_fast():
+    """Hard (size 9) must generate well under the ~3s serverless budget per seed."""
+    for seed in SEEDS:
+        start = time.time()
+        generate(seed=seed, size=9)
+        assert time.time() - start < 3.0, f"size 9 seed {seed} too slow"

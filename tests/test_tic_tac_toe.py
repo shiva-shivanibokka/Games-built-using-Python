@@ -1,7 +1,7 @@
 """The AI must be unbeatable: exhaustively play every game where the human
 tries every move, and assert the AI (O) never loses."""
 
-from games.tic_tac_toe import best_move, winner, is_full
+from games.tic_tac_toe import best_move, move, winner, is_full
 
 
 def _play_out(board: list[str], human: str, ai: str, to_move: str) -> None:
@@ -36,3 +36,16 @@ def test_takes_immediate_win():
 
 def test_blocks_immediate_loss():
     assert best_move(["X", "X", "", "O", "", "", "", "", ""], "O") == 2
+
+
+def test_easy_medium_return_legal_move():
+    board = ["X", "", "O", "", "X", "", "", "", ""]
+    empties = [i for i, c in enumerate(board) if not c]
+    for level in ("easy", "medium"):
+        for _ in range(20):  # easy is random; sample a few times
+            assert move(list(board), "O", level) in empties
+
+
+def test_medium_takes_win_and_blocks():
+    assert move(["O", "O", "", "X", "X", "", "", "", ""], "O", "medium") == 2
+    assert move(["X", "X", "", "O", "", "", "", "", ""], "O", "medium") == 2

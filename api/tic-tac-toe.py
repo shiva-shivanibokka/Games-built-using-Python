@@ -18,7 +18,7 @@ from urllib.parse import urlparse, parse_qs
 
 # Make the shared `games` package importable (repo root is this file's grandparent).
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-from games.tic_tac_toe import best_move, winner, is_full  # noqa: E402
+from games.tic_tac_toe import move as ai_move, winner, is_full  # noqa: E402
 
 
 def _decode(raw: str) -> list[str]:
@@ -26,10 +26,11 @@ def _decode(raw: str) -> list[str]:
     return [c if c in ("X", "O") else "" for c in cells]
 
 
-def compute(board_raw: str, ai: str) -> dict:
+def compute(board_raw: str, ai: str, level: str = "hard") -> dict:
     board = _decode(board_raw)
     ai = ai if ai in ("X", "O") else "O"
-    move = best_move(board, ai)
+    level = level if level in ("easy", "medium", "hard") else "hard"
+    move = ai_move(board, ai, level)
     if move is not None:
         board[move] = ai
     return {
@@ -43,7 +44,11 @@ def compute(board_raw: str, ai: str) -> dict:
 class handler(BaseHTTPRequestHandler):
     def do_GET(self):
         params = parse_qs(urlparse(self.path).query)
-        result = compute(params.get("board", [""])[0], params.get("ai", ["O"])[0])
+        result = compute(
+            params.get("board", [""])[0],
+            params.get("ai", ["O"])[0],
+            params.get("level", ["hard"])[0],
+        )
         payload = json.dumps(result).encode()
         self.send_response(200)
         self.send_header("Content-Type", "application/json")

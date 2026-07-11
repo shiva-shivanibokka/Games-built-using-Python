@@ -7,41 +7,43 @@ between). The returned path IS the solution, so a board is always solvable.
 
 import random
 
-# ponytail: randomized-restart backtracking. 6x6 solves in a handful of tries;
-# bump attempts if you ever raise N much higher.
-_MAX_ATTEMPTS = 200
-
 
 def _hamiltonian_path(rng: random.Random, size: int) -> list[list[int]]:
-    """Random path visiting every cell once, via randomized DFS with backtracking."""
+    """Random Hamiltonian path (visits every cell once) via the backbite shuffle.
+
+    Start from a trivial snake path, then repeatedly mutate one end: pick a
+    grid-neighbor of the head, and reverse the prefix up to it. Each move keeps
+    the path a valid Hamiltonian path, so this never fails and is fast for any N
+    (random-restart DFS blows up exponentially by 7x7).
+    """
     total = size * size
-    for _ in range(_MAX_ATTEMPTS):
-        start = (rng.randrange(size), rng.randrange(size))
-        visited = {start}
-        path = [start]
 
-        def dfs(r: int, c: int) -> bool:
-            if len(path) == total:
-                return True
-            neighbors = [
-                (r + dr, c + dc)
-                for dr, dc in ((-1, 0), (1, 0), (0, -1), (0, 1))
-                if 0 <= r + dr < size and 0 <= c + dc < size
-            ]
-            rng.shuffle(neighbors)
-            for nr, nc in neighbors:
-                if (nr, nc) not in visited:
-                    visited.add((nr, nc))
-                    path.append((nr, nc))
-                    if dfs(nr, nc):
-                        return True
-                    path.pop()
-                    visited.discard((nr, nc))
-            return False
+    def neighbors(cell):
+        r, c = cell
+        return [
+            (r + dr, c + dc)
+            for dr, dc in ((-1, 0), (1, 0), (0, -1), (0, 1))
+            if 0 <= r + dr < size and 0 <= c + dc < size
+        ]
 
-        if dfs(*start):
-            return [[r, c] for r, c in path]
-    raise RuntimeError(f"failed to build Hamiltonian path for size {size}")
+    # Boustrophedon (snake) seed path — already Hamiltonian.
+    path = []
+    for r in range(size):
+        cols = range(size) if r % 2 == 0 else range(size - 1, -1, -1)
+        path.extend((r, c) for c in cols)
+
+    # Backbite: O(total^2) moves mixes thoroughly; each is O(total), so trivial.
+    for _ in range(total * total * 4):
+        if rng.random() < 0.5:
+            path.reverse()  # operate on the other end too
+        head = path[0]
+        choices = [v for v in neighbors(head) if v != path[1]]
+        if not choices:
+            continue
+        k = path.index(rng.choice(choices))  # chosen neighbor sits at index k>=2
+        path[:k] = path[:k][::-1]  # reverse prefix; new head-path[k] edge is valid
+
+    return [[r, c] for r, c in path]
 
 
 def generate(seed=None, size=6) -> dict:

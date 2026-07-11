@@ -7,11 +7,12 @@ import pytest
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-from games.brain_teasers import KINDS, generate
+from games.brain_teasers import DIFFICULTY_KINDS, KINDS, generate
 from games.brain_teasers.cryptarithm import solve
 
 SEEDS = list(range(40))
 ALL_KINDS = list(KINDS)
+DIFFICULTIES = list(DIFFICULTY_KINDS)
 
 
 @pytest.mark.parametrize("kind", ALL_KINDS)
@@ -32,6 +33,20 @@ def test_well_formed(kind, seed):
 @pytest.mark.parametrize("kind", ALL_KINDS)
 def test_determinism(seed, kind):
     assert generate(seed=seed, kind=kind) == generate(seed=seed, kind=kind)
+
+
+@pytest.mark.parametrize("difficulty", DIFFICULTIES)
+@pytest.mark.parametrize("seed", SEEDS)
+def test_difficulty_valid_and_deterministic(difficulty, seed):
+    """Each difficulty (no explicit kind) yields a valid, in-pool, stable teaser."""
+    t = generate(seed=seed, difficulty=difficulty)
+    assert t["kind"] in DIFFICULTY_KINDS[difficulty]
+    assert t["difficulty"] == difficulty
+    opts = t["options"]
+    assert len(opts) == 4 and len(set(opts)) == 4, opts
+    assert isinstance(t["answer"], int) and 0 <= t["answer"] < 4
+    assert t["prompt"] and t["explanation"]
+    assert generate(seed=seed, difficulty=difficulty) == generate(seed=seed, difficulty=difficulty)
 
 
 @pytest.mark.parametrize("seed", SEEDS)

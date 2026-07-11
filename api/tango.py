@@ -29,7 +29,8 @@ class handler(BaseHTTPRequestHandler):
         except ValueError:
             seed = None
 
-        result = generate(seed=seed)
+        difficulty = params.get("difficulty", ["medium"])[0]
+        result = generate(seed=seed, difficulty=difficulty)
         payload = json.dumps(result).encode()
         self.send_response(200)
         self.send_header("Content-Type", "application/json")

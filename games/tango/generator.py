@@ -45,7 +45,10 @@ def _all_edges(grid: list) -> list:
     return edges
 
 
-def generate(seed=None) -> dict:
+_FLOOR_GIVENS = {"easy": 10, "medium": 6, "hard": 3}
+
+
+def generate(seed=None, difficulty="medium") -> dict:
     if seed is None:
         seed = random.SystemRandom().randrange(1_000_000_000)
     rng = random.Random(seed)
@@ -62,8 +65,10 @@ def generate(seed=None) -> dict:
     # uniqueness. Starting from the full grid the puzzle is always unique, so
     # every removal is guarded and generation always terminates uniquely.
     # Keep a floor of prefilled cells so the board feels like a real Tango
-    # (several givens + a few signs) rather than an all-edges puzzle.
-    floor_givens = 6
+    # (several givens + a few signs) rather than an all-edges puzzle. More
+    # givens = easier. Floor is only a target; the guard below never drops a
+    # clue that breaks uniqueness, so the effective count may sit above it.
+    floor_givens = _FLOOR_GIVENS.get(difficulty, 6)
     for g in list(givens):
         if len(givens) <= floor_givens:
             break
