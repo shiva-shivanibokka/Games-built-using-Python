@@ -7,37 +7,47 @@ export type Game = {
   tagline: string;
   emoji: string;
   status: "live" | "soon";
+  /** Two-stop gradient [from, to] — the game's signature color. */
+  gradient: [string, string];
 };
 
 export const GAMES: Game[] = [
   {
     slug: "tic-tac-toe",
     name: "Tic-Tac-Toe",
-    tagline: "Beat an unbeatable minimax AI. (You can't.)",
+    tagline: "Face an unbeatable minimax AI. Best you can do is a draw.",
     emoji: "⭕",
     status: "live",
+    gradient: ["#7c3aed", "#ec4899"],
   },
   {
     slug: "sudoku",
     name: "Sudoku",
-    tagline: "A fresh, uniquely-solvable grid every time.",
+    tagline: "A fresh, uniquely-solvable grid every single time.",
     emoji: "🔢",
-    status: "soon",
+    status: "live",
+    gradient: ["#06b6d4", "#3b82f6"],
   },
   {
     slug: "tango",
     name: "Tango",
-    tagline: "Fill the grid with suns and moons — no three in a row.",
+    tagline: "Suns and moons — balance every row, never three in a line.",
     emoji: "☀️",
-    status: "soon",
+    status: "live",
+    gradient: ["#f59e0b", "#ef4444"],
   },
   {
     slug: "zip",
     name: "Zip",
-    tagline: "Draw one path through every cell, in order.",
+    tagline: "One unbroken path through every cell, in order.",
     emoji: "🔗",
-    status: "soon",
+    status: "live",
+    gradient: ["#22c55e", "#14b8a6"],
   },
 ];
 
 export const gameBySlug = (slug: string) => GAMES.find((g) => g.slug === slug);
+
+/** Inline style helper for a game's gradient. */
+export const gradientOf = (g: Game) =>
+  `linear-gradient(135deg, ${g.gradient[0]}, ${g.gradient[1]})`;

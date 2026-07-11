@@ -1,0 +1,289 @@
+"use client";
+
+import { useCallback, useEffect, useRef, useState } from "react";
+import GameShell from "../components/GameShell";
+import Scoreboard from "../components/Scoreboard";
+
+type Difficulty = "easy" | "medium" | "hard";
+const GRAD = "linear-gradient(135deg,#06b6d4,#3b82f6)";
+const ACCENT = "#06b6d4";
+
+type Puzzle = { puzzle: string; solution: string };
+
+// Indices sharing a row/col/box with `i` (for conflict + peer highlighting).
+function peers(i: number): number[] {
+  const r = Math.floor(i / 9);
+  const c = i % 9;
+  const br = Math.floor(r / 3) * 3;
+  const bc = Math.floor(c / 3) * 3;
+  const set = new Set<number>();
+  for (let k = 0; k < 9; k++) {
+    set.add(r * 9 + k);
+    set.add(k * 9 + c);
+  }
+  for (let rr = br; rr < br + 3; rr++)
+    for (let cc = bc; cc < bc + 3; cc++) set.add(rr * 9 + cc);
+  set.delete(i);
+  return [...set];
+}
+
+export default function Sudoku() {
+  const [puzzle, setPuzzle] = useState<Puzzle | null>(null);
+  const [given, setGiven] = useState<boolean[]>([]);
+  const [values, setValues] = useState<string[]>([]);
+  const [selected, setSelected] = useState<number | null>(null);
+  const [difficulty, setDifficulty] = useState<Difficulty>("easy");
+  const [loading, setLoading] = useState(true);
+  const [solved, setSolved] = useState(0);
+  const [mistakes, setMistakes] = useState(0);
+  const gridRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    const s = localStorage.getItem("sudoku-solved");
+    if (s) setSolved(parseInt(s, 10) || 0);
+  }, []);
+
+  const load = useCallback(async (diff: Difficulty) => {
+    setLoading(true);
+    setSelected(null);
+    try {
+      const seed = Math.floor(Math.random() * 1e9);
+      const res = await fetch(`/api/sudoku?difficulty=${diff}&seed=${seed}`);
+      const data: Puzzle = await res.json();
+      setPuzzle(data);
+      setGiven([...data.puzzle].map((c) => c !== "."));
+      setValues([...data.puzzle].map((c) => (c === "." ? "" : c)));
+      setMistakes(0);
+    } catch {
+      // API unreachable — leave prior board; user can retry New game.
+    } finally {
+      setLoading(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    load("easy");
+  }, [load]);
+
+  const won =
+    !!puzzle &&
+    values.length === 81 &&
+    values.every((v, i) => v === puzzle.solution[i]);
+
+  // Award a solve exactly once when the board becomes correct.
+  const wonRef = useRef(false);
+  useEffect(() => {
+    if (won && !wonRef.current) {
+      wonRef.current = true;
+      setSolved((s) => {
+        const next = s + 1;
+        localStorage.setItem("sudoku-solved", String(next));
+        return next;
+      });
+    } else if (!won) {
+      wonRef.current = false;
+    }
+  }, [won]);
+
+  const setCell = useCallback(
+    (i: number, digit: string) => {
+      if (given[i] || won) return;
+      setValues((prev) => {
+        const next = [...prev];
+        next[i] = digit;
+        return next;
+      });
+      if (puzzle && digit && digit !== puzzle.solution[i]) {
+        setMistakes((m) => m + 1);
+      }
+    },
+    [given, won, puzzle]
+  );
+
+  const move = useCallback(
+    (i: number, dr: number, dc: number) => {
+      const r = Math.floor(i / 9) + dr;
+      const c = (i % 9) + dc;
+      if (r < 0 || r > 8 || c < 0 || c > 8) return;
+      setSelected(r * 9 + c);
+    },
+    []
+  );
+
+  const onKey = useCallback(
+    (e: React.KeyboardEvent) => {
+      if (selected == null) return;
+      const k = e.key;
+      if (k >= "1" && k <= "9") {
+        setCell(selected, k);
+        e.preventDefault();
+      } else if (k === "Backspace" || k === "Delete" || k === "0") {
+        setCell(selected, "");
+        e.preventDefault();
+      } else if (k === "ArrowUp") {
+        move(selected, -1, 0);
+        e.preventDefault();
+      } else if (k === "ArrowDown") {
+        move(selected, 1, 0);
+        e.preventDefault();
+      } else if (k === "ArrowLeft") {
+        move(selected, 0, -1);
+        e.preventDefault();
+      } else if (k === "ArrowRight") {
+        move(selected, 0, 1);
+        e.preventDefault();
+      }
+    },
+    [selected, setCell, move]
+  );
+
+  // Conflict set: cells whose value duplicates a peer's value.
+  const conflicts = new Set<number>();
+  for (let i = 0; i < 81; i++) {
+    if (!values[i]) continue;
+    for (const p of peers(i)) {
+      if (values[p] === values[i]) {
+        conflicts.add(i);
+        break;
+      }
+    }
+  }
+
+  const selDigit = selected != null ? values[selected] : "";
+  const peerSet = selected != null ? new Set(peers(selected)) : new Set<number>();
+
+  const status = won
+    ? "Solved! 🎉 Beautiful."
+    : loading
+      ? "Dealing a fresh grid…"
+      : "Fill every row, column, and box with 1–9";
+
+  return (
+    <GameShell slug="sudoku">
+      <Scoreboard
+        stats={[
+          { label: "Solved", value: solved, color: ACCENT },
+          { label: "Mistakes", value: mistakes, color: "#ef4444" },
+        ]}
+        onClear={() => {
+          setSolved(0);
+          setMistakes(0);
+          localStorage.removeItem("sudoku-solved");
+        }}
+      />
+
+      <div className="mt-5 flex items-center justify-between gap-3">
+        <span className="font-display text-lg font-bold" aria-live="polite">
+          {status}
+        </span>
+        <div className="flex gap-1 rounded-full border border-border p-1 text-xs">
+          {(["easy", "medium", "hard"] as Difficulty[]).map((d) => (
+            <button
+              key={d}
+              onClick={() => {
+                setDifficulty(d);
+                load(d);
+              }}
+              className="rounded-full px-3 py-1 font-medium capitalize transition-colors"
+              style={
+                difficulty === d
+                  ? { backgroundImage: GRAD, color: "#fff" }
+                  : undefined
+              }
+            >
+              {d}
+            </button>
+          ))}
+        </div>
+      </div>
+
+      <div
+        ref={gridRef}
+        tabIndex={0}
+        onKeyDown={onKey}
+        role="grid"
+        aria-label="Sudoku board"
+        className="pop-card mt-4 grid grid-cols-9 gap-0 overflow-hidden p-2 aspect-square outline-none"
+      >
+        {Array.from({ length: 81 }, (_, i) => {
+          const r = Math.floor(i / 9);
+          const c = i % 9;
+          const isGiven = given[i];
+          const val = values[i] || "";
+          const isSel = selected === i;
+          const isConflict = conflicts.has(i);
+          const isPeer = peerSet.has(i);
+          const sameDigit = !!val && selDigit === val && !isSel;
+          return (
+            <button
+              key={i}
+              role="gridcell"
+              onClick={() => setSelected(i)}
+              aria-label={`row ${r + 1}, column ${c + 1}${val ? `, ${val}` : ", empty"}`}
+              className="relative flex items-center justify-center font-display text-lg font-bold transition-colors sm:text-2xl"
+              style={{
+                aspectRatio: "1",
+                color: isConflict
+                  ? "#ef4444"
+                  : isGiven
+                    ? "var(--foreground)"
+                    : ACCENT,
+                background: isSel
+                  ? "rgba(6,182,212,0.28)"
+                  : isConflict
+                    ? "rgba(239,68,68,0.15)"
+                    : sameDigit
+                      ? "rgba(6,182,212,0.16)"
+                      : isPeer
+                        ? "rgba(6,182,212,0.07)"
+                        : "transparent",
+                borderRight:
+                  c % 3 === 2 && c !== 8
+                    ? "2px solid var(--foreground)"
+                    : "1px solid var(--border)",
+                borderBottom:
+                  r % 3 === 2 && r !== 8
+                    ? "2px solid var(--foreground)"
+                    : "1px solid var(--border)",
+              }}
+            >
+              {val}
+            </button>
+          );
+        })}
+      </div>
+
+      {/* On-screen number pad */}
+      <div className="mt-4 grid grid-cols-9 gap-1.5">
+        {["1", "2", "3", "4", "5", "6", "7", "8", "9"].map((d) => (
+          <button
+            key={d}
+            onClick={() => selected != null && setCell(selected, d)}
+            disabled={selected == null || (selected != null && given[selected])}
+            className="pop-card flex items-center justify-center py-2 font-display text-lg font-bold transition-transform enabled:hover:scale-105 disabled:opacity-40"
+            style={{ color: ACCENT }}
+          >
+            {d}
+          </button>
+        ))}
+      </div>
+
+      <div className="mt-4 flex gap-3">
+        <button
+          onClick={() => load(difficulty)}
+          className="rounded-full px-5 py-2.5 text-sm font-semibold text-white shadow-lg transition-transform hover:scale-105"
+          style={{ backgroundImage: GRAD }}
+        >
+          New game
+        </button>
+        <button
+          onClick={() => selected != null && setCell(selected, "")}
+          disabled={selected == null}
+          className="rounded-full border border-border px-5 py-2.5 text-sm font-medium transition-colors hover:border-foreground/30 disabled:opacity-50"
+        >
+          Erase
+        </button>
+      </div>
+    </GameShell>
+  );
+}

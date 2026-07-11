@@ -1,36 +1,40 @@
 @import "tailwindcss";
 
 :root {
-  --background: #f7f7f8;
-  --foreground: #14141a;
-  --card: #ffffff;
-  --border: #e6e6ea;
-  --muted: #6b6b76;
-  --accent: #6d5efc;
-  --accent-fg: #ffffff;
+  --background: #0a0a12;
+  --foreground: #f4f4fb;
+  --card: rgba(255, 255, 255, 0.04);
+  --card-solid: #14141f;
+  --border: rgba(255, 255, 255, 0.1);
+  --muted: #a3a3b8;
+  --accent: #a78bff;
+  --accent-fg: #0a0a12;
 }
 
 @theme inline {
   --color-background: var(--background);
   --color-foreground: var(--foreground);
   --color-card: var(--card);
+  --color-card-solid: var(--card-solid);
   --color-border: var(--border);
   --color-muted: var(--muted);
   --color-accent: var(--accent);
   --color-accent-fg: var(--accent-fg);
+  --font-display: var(--font-bricolage);
   --font-sans: var(--font-geist-sans);
   --font-mono: var(--font-geist-mono);
 }
 
-@media (prefers-color-scheme: dark) {
+@media (prefers-color-scheme: light) {
   :root {
-    --background: #0b0b0f;
-    --foreground: #ededf2;
-    --card: #16161c;
-    --border: #26262e;
-    --muted: #9a9aa6;
-    --accent: #8b7dff;
-    --accent-fg: #0b0b0f;
+    --background: #f6f5ff;
+    --foreground: #16121f;
+    --card: rgba(255, 255, 255, 0.75);
+    --card-solid: #ffffff;
+    --border: rgba(20, 12, 40, 0.1);
+    --muted: #5f5a72;
+    --accent: #7c3aed;
+    --accent-fg: #ffffff;
   }
 }
 
@@ -38,4 +42,56 @@ body {
   background: var(--background);
   color: var(--foreground);
   font-family: var(--font-sans), system-ui, sans-serif;
+  position: relative;
+}
+
+/* Signature: slow-drifting aurora of the four game colors behind everything. */
+.aurora {
+  position: fixed;
+  inset: -20vmax;
+  z-index: -1;
+  pointer-events: none;
+  filter: blur(90px) saturate(1.3);
+  opacity: 0.5;
+  background:
+    radial-gradient(38vmax 38vmax at 15% 20%, #7c3aed, transparent 60%),
+    radial-gradient(34vmax 34vmax at 85% 15%, #06b6d4, transparent 60%),
+    radial-gradient(36vmax 36vmax at 80% 85%, #f59e0b, transparent 60%),
+    radial-gradient(32vmax 32vmax at 20% 90%, #22c55e, transparent 60%);
+  animation: drift 22s ease-in-out infinite alternate;
+}
+
+@keyframes drift {
+  from { transform: translate3d(-3%, -2%, 0) scale(1); }
+  to { transform: translate3d(4%, 3%, 0) scale(1.12); }
+}
+
+@media (prefers-color-scheme: light) {
+  .aurora { opacity: 0.35; }
+}
+
+/* Chunky "sticker" surface used for cards and boards. */
+.pop-card {
+  background: var(--card);
+  border: 1px solid var(--border);
+  border-radius: 1.25rem;
+  backdrop-filter: blur(12px);
+  box-shadow: 0 10px 40px -12px rgba(0, 0, 0, 0.5);
+}
+
+.gradient-text {
+  background-clip: text;
+  -webkit-background-clip: text;
+  color: transparent;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .aurora { animation: none; }
+  * { transition: none !important; }
+}
+
+*:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+  border-radius: 4px;
 }

@@ -1,6 +1,8 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
+import GameShell from "../components/GameShell";
+import Scoreboard from "../components/Scoreboard";
 
 type Cell = "X" | "O" | "";
 const EMPTY: Cell[] = Array(9).fill("");
@@ -9,13 +11,16 @@ const LINES = [
   [0, 3, 6], [1, 4, 7], [2, 5, 8],
   [0, 4, 8], [2, 4, 6],
 ];
-
 const HUMAN: Cell = "X";
 const AI: Cell = "O";
+const X_COLOR = "#a78bff";
+const O_COLOR = "#ec4899";
+const BLANK = { w: 0, l: 0, d: 0 };
 
-function winner(b: Cell[]): Cell | null {
-  for (const [a, c, d] of LINES) {
-    if (b[a] && b[a] === b[c] && b[a] === b[d]) return b[a];
+function winLine(b: Cell[]): number[] | null {
+  for (const line of LINES) {
+    const [a, c, d] = line;
+    if (b[a] && b[a] === b[c] && b[a] === b[d]) return line;
   }
   return null;
 }
@@ -24,14 +29,14 @@ const isFull = (b: Cell[]) => b.every((c) => c);
 export default function TicTacToe() {
   const [board, setBoard] = useState<Cell[]>(EMPTY);
   const [busy, setBusy] = useState(false);
-  const [record, setRecord] = useState({ w: 0, l: 0, d: 0 });
+  const [record, setRecord] = useState(BLANK);
 
   useEffect(() => {
     const saved = localStorage.getItem("ttt-record");
     if (saved) setRecord(JSON.parse(saved));
   }, []);
 
-  const bumpRecord = useCallback((key: "w" | "l" | "d") => {
+  const bump = useCallback((key: "w" | "l" | "d") => {
     setRecord((r) => {
       const next = { ...r, [key]: r[key] + 1 };
       localStorage.setItem("ttt-record", JSON.stringify(next));
@@ -39,40 +44,36 @@ export default function TicTacToe() {
     });
   }, []);
 
-  const win = winner(board);
+  const line = winLine(board);
+  const win: Cell | null = line ? board[line[0]] : null;
   const draw = !win && isFull(board);
   const over = !!win || draw;
 
-  // Ask the Python API for the AI's move and apply it.
-  const aiMove = useCallback(
-    async (current: Cell[]) => {
-      setBusy(true);
-      try {
-        const encoded = current.map((c) => c || "-").join("");
-        const res = await fetch(`/api/tic-tac-toe?board=${encoded}&ai=${AI}`);
-        const data: { move: number | null } = await res.json();
-        if (data.move != null) {
-          setBoard((b) => {
-            if (b[data.move!] || winner(b)) return b;
-            const next = [...b];
-            next[data.move!] = AI;
-            return next;
-          });
-        }
-      } catch {
-        // Network/API error — leave the board; status line will still be usable.
-      } finally {
-        setBusy(false);
+  const aiMove = useCallback(async (current: Cell[]) => {
+    setBusy(true);
+    try {
+      const encoded = current.map((c) => c || "-").join("");
+      const res = await fetch(`/api/tic-tac-toe?board=${encoded}&ai=${AI}`);
+      const data: { move: number | null } = await res.json();
+      if (data.move != null) {
+        setBoard((b) => {
+          if (b[data.move!] || winLine(b)) return b;
+          const next = [...b];
+          next[data.move!] = AI;
+          return next;
+        });
       }
-    },
-    [],
-  );
+    } catch {
+      // API unreachable — board stays; player can start a new game.
+    } finally {
+      setBusy(false);
+    }
+  }, []);
 
-  // Record the result once, when the game ends.
   useEffect(() => {
-    if (win === HUMAN) bumpRecord("w");
-    else if (win === AI) bumpRecord("l");
-    else if (draw) bumpRecord("d");
+    if (win === HUMAN) bump("w");
+    else if (win === AI) bump("l");
+    else if (draw) bump("d");
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [over]);
 
@@ -81,7 +82,7 @@ export default function TicTacToe() {
     const next = [...board];
     next[i] = HUMAN;
     setBoard(next);
-    if (!winner(next) && !isFull(next)) aiMove(next);
+    if (!winLine(next) && !isFull(next)) aiMove(next);
   }
 
   function reset(aiFirst = false) {
@@ -92,60 +93,80 @@ export default function TicTacToe() {
   const status = win
     ? win === HUMAN
       ? "You win! 🎉"
-      : "The AI wins."
+      : "The AI takes it."
     : draw
-      ? "Draw."
+      ? "Draw — the only way to survive."
       : busy
         ? "AI thinking…"
-        : "Your move (X)";
+        : "Your move";
 
   return (
-    <div className="max-w-md mx-auto">
-      <h1 className="text-3xl font-semibold tracking-tight">Tic-Tac-Toe</h1>
-      <p className="mt-1 text-muted">
-        You are <b>X</b>. The <b>O</b> moves come from a minimax AI running on the
-        Python API — it is unbeatable, so aim for a draw.
-      </p>
+    <GameShell slug="tic-tac-toe">
+      <Scoreboard
+        stats={[
+          { label: "You", value: record.w, color: X_COLOR },
+          { label: "AI", value: record.l, color: O_COLOR },
+          { label: "Draws", value: record.d },
+        ]}
+        onClear={() => {
+          setRecord(BLANK);
+          localStorage.removeItem("ttt-record");
+        }}
+      />
 
-      <div className="mt-6 flex items-center justify-between">
-        <span className="font-medium" aria-live="polite">{status}</span>
-        <span className="text-sm text-muted font-mono">
-          W {record.w} · L {record.l} · D {record.d}
+      <div className="mt-5 flex items-center justify-between">
+        <span className="font-display text-lg font-bold" aria-live="polite">
+          {status}
+        </span>
+        <span className="text-sm text-muted">
+          You’re <b style={{ color: X_COLOR }}>X</b> · AI is{" "}
+          <b style={{ color: O_COLOR }}>O</b>
         </span>
       </div>
 
-      <div className="mt-4 grid grid-cols-3 gap-2 aspect-square">
-        {board.map((c, i) => (
-          <button
-            key={i}
-            onClick={() => play(i)}
-            disabled={!!c || over || busy}
-            aria-label={`cell ${i + 1}${c ? `, ${c}` : ""}`}
-            className={`rounded-lg border border-border bg-card text-4xl font-mono font-bold
-              flex items-center justify-center transition-colors
-              disabled:cursor-not-allowed enabled:hover:bg-border/40
-              ${c === "X" ? "text-accent" : "text-foreground"}`}
-          >
-            {c}
-          </button>
-        ))}
+      <div className="mt-4 grid grid-cols-3 gap-3 aspect-square">
+        {board.map((c, i) => {
+          const winning = line?.includes(i);
+          return (
+            <button
+              key={i}
+              onClick={() => play(i)}
+              disabled={!!c || over || busy}
+              aria-label={`cell ${i + 1}${c ? `, ${c}` : ", empty"}`}
+              className={`pop-card flex items-center justify-center text-5xl font-display font-extrabold
+                transition-all duration-150 enabled:hover:scale-[1.03] enabled:hover:brightness-125
+                disabled:cursor-not-allowed ${winning ? "scale-[1.03]" : ""}`}
+              style={{
+                color: c === "X" ? X_COLOR : O_COLOR,
+                boxShadow: winning
+                  ? `0 0 0 2px ${c === "X" ? X_COLOR : O_COLOR}, 0 12px 40px -10px ${
+                      c === "X" ? X_COLOR : O_COLOR
+                    }`
+                  : undefined,
+              }}
+            >
+              {c}
+            </button>
+          );
+        })}
       </div>
 
-      <div className="mt-6 flex gap-2">
+      <div className="mt-6 flex gap-3">
         <button
           onClick={() => reset(false)}
-          className="rounded-md bg-accent text-accent-fg px-4 py-2 text-sm font-medium"
+          className="rounded-full px-5 py-2.5 text-sm font-semibold text-white shadow-lg transition-transform hover:scale-105"
+          style={{ backgroundImage: "linear-gradient(135deg,#7c3aed,#ec4899)" }}
         >
           New game
         </button>
         <button
           onClick={() => reset(true)}
           disabled={busy}
-          className="rounded-md border border-border px-4 py-2 text-sm"
+          className="rounded-full border border-border px-5 py-2.5 text-sm font-medium transition-colors hover:border-foreground/30 disabled:opacity-50"
         >
           Let AI start
         </button>
       </div>
-    </div>
+    </GameShell>
   );
 }
