@@ -9,6 +9,7 @@ export function useTimer() {
   const [running, setRunning] = useState(false);
   const anchor = useRef(0); // Date.now() when the current running segment began
   const base = useRef(0); // accumulated ms from earlier segments
+  const runningRef = useRef(false); // mirror of `running` for pure reads in callbacks
 
   useEffect(() => {
     if (!running) return;
@@ -16,19 +17,21 @@ export function useTimer() {
     return () => clearInterval(id);
   }, [running]);
 
+  // Side effects live in the callback body (runs once), NOT inside a state
+  // updater — React double-invokes updaters under StrictMode, which would
+  // otherwise double-count the elapsed time.
   const stop = useCallback(() => {
-    setRunning((prev) => {
-      if (prev) {
-        base.current += Date.now() - anchor.current;
-        setMs(base.current);
-      }
-      return false;
-    });
+    if (!runningRef.current) return;
+    base.current += Date.now() - anchor.current;
+    runningRef.current = false;
+    setMs(base.current);
+    setRunning(false);
   }, []);
 
   const restart = useCallback(() => {
     base.current = 0;
     anchor.current = Date.now();
+    runningRef.current = true;
     setMs(0);
     setRunning(true);
   }, []);
@@ -37,7 +40,7 @@ export function useTimer() {
 }
 
 export function formatMs(ms: number): string {
-  const total = Math.floor(ms / 1000);
+  const total = Math.floor(Math.max(0, ms) / 1000);
   const m = Math.floor(total / 60);
   const s = total % 60;
   return `${m}:${String(s).padStart(2, "0")}`;
@@ -48,16 +51,26 @@ const bestKey = (slug: string, difficulty?: string) =>
 
 export function readBest(slug: string, difficulty?: string): number | null {
   if (typeof window === "undefined") return null;
-  const v = localStorage.getItem(bestKey(slug, difficulty));
-  return v ? parseInt(v, 10) : null;
+  try {
+    const v = localStorage.getItem(bestKey(slug, difficulty));
+    if (v == null) return null;
+    const n = parseInt(v, 10);
+    return Number.isFinite(n) ? n : null;
+  } catch {
+    return null; // storage blocked (privacy mode) or malformed — degrade gracefully
+  }
 }
 
 /** Save `ms` if it beats the stored best; returns the current best. */
 export function saveBest(slug: string, ms: number, difficulty?: string): number {
   const cur = readBest(slug, difficulty);
-  if (cur == null || ms < cur) {
-    localStorage.setItem(bestKey(slug, difficulty), String(ms));
-    return ms;
+  const best = cur == null || ms < cur ? ms : cur;
+  if (typeof window !== "undefined") {
+    try {
+      localStorage.setItem(bestKey(slug, difficulty), String(best));
+    } catch {
+      // storage blocked — best just isn't persisted this session
+    }
   }
-  return cur;
+  return best;
 }

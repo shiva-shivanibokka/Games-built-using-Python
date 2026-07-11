@@ -112,6 +112,8 @@ body {
 
 .win-glow {
   border-radius: 1.5rem;
+  /* Static fallback for browsers without color-mix(); the keyframe overrides it. */
+  box-shadow: 0 0 40px 4px rgba(160, 140, 255, 0.4);
   animation: winglow 1.5s ease-in-out infinite;
 }
 

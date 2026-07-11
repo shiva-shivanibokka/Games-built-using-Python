@@ -31,6 +31,7 @@ export default function Zip() {
   const [hint, setHint] = useState<number | null>(null);
   const [difficulty, setDifficulty] = useState<Difficulty>("medium");
   const [best, setBest] = useState<number | null>(null);
+  const [loading, setLoading] = useState(false);
 
   const timer = useTimer();
   const gridRef = useRef<HTMLDivElement>(null);
@@ -49,6 +50,7 @@ export default function Zip() {
     setPath([]);
     setWon(false);
     setHint(null);
+    setLoading(true);
     try {
       const res = await fetch(`/api/zip?seed=${s}&size=${SIZES[difficulty]}`);
       setBoard(await res.json());
@@ -56,6 +58,8 @@ export default function Zip() {
       timer.restart();
     } catch {
       // API unreachable — leave the current board.
+    } finally {
+      setLoading(false);
     }
   }, [difficulty, timer]);
 
@@ -197,7 +201,7 @@ export default function Zip() {
           value={difficulty}
           onChange={setDifficulty}
           accent={GREEN}
-          disabled={!board}
+          disabled={!board || loading}
         />
         <TimerBadge ms={timer.ms} best={best} />
       </div>

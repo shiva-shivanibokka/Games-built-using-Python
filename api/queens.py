@@ -30,10 +30,28 @@ class handler(BaseHTTPRequestHandler):
             size = int(params.get("size", ["8"])[0])
         except ValueError:
             size = 8
-        if size < 4 or size > 12:
-            size = 8
+        # Clamp to the range that generates quickly and reliably; larger boards
+        # can exceed the serverless time budget or exhaust the generator's retries.
+        size = max(4, min(9, size))
 
-        result = generate(seed=seed, size=size)
+        # Generation can (rarely) exhaust its retry cap and raise; retry with a
+        # fresh seed a few times, then fail gracefully instead of 500-ing hard.
+        result = None
+        for _ in range(4):
+            try:
+                result = generate(seed=seed, size=size)
+                break
+            except Exception:
+                seed = None
+        if result is None:
+            body = json.dumps({"error": "could not generate a board, try again"}).encode()
+            self.send_response(503)
+            self.send_header("Content-Type", "application/json")
+            self.send_header("Cache-Control", "no-store")
+            self.end_headers()
+            self.wfile.write(body)
+            return
+
         payload = json.dumps(result).encode()
         self.send_response(200)
         self.send_header("Content-Type", "application/json")

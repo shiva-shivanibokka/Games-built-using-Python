@@ -42,6 +42,7 @@ export default function Wend() {
   const [hintStep, setHintStep] = useState(0);
   const [difficulty, setDifficulty] = useState<Difficulty>("medium");
   const [best, setBest] = useState<number | null>(null);
+  const [loading, setLoading] = useState(false);
   const timer = useTimer();
   const drawing = useRef(false);
 
@@ -62,12 +63,15 @@ export default function Wend() {
       setWon(false);
       setHintWord(null);
       setHintStep(0);
+      setLoading(true);
       try {
         const res = await fetch(`/api/wend?seed=${s}&difficulty=${difficulty}`);
         setBoard(await res.json());
         timer.restart();
       } catch {
         // API unreachable — keep current board.
+      } finally {
+        setLoading(false);
       }
     },
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -152,19 +156,20 @@ export default function Wend() {
       .map((_, i) => i)
       .filter((i) => !foundWords.has(board.words[i]));
     if (unfound.length === 0) return;
-    // Keep advancing the current word while it's unfound and not fully shown.
-    if (
-      hintWord != null &&
-      unfound.includes(hintWord) &&
-      hintStep < board.words[hintWord].length
-    ) {
-      setHintStep((s) => s + 1);
+    // Advance within the current word, or jump to another unfound word.
+    if (hintWord != null && unfound.includes(hintWord)) {
+      if (hintStep < board.words[hintWord].length) {
+        setHintStep((s) => s + 1); // reveal the next letter
+      } else if (unfound.length > 1) {
+        const start = unfound.indexOf(hintWord);
+        setHintWord(unfound[(start + 1) % unfound.length]);
+        setHintStep(1);
+      }
+      // else: the only unfound word is already fully shown — leave it revealed.
       return;
     }
-    // Otherwise move to the next unfound word and reveal its first letter.
-    const start = hintWord != null ? unfound.indexOf(hintWord) : -1;
-    const next = unfound[(start + 1) % unfound.length];
-    setHintWord(next);
+    // No active hint (or its word was found): start on the first unfound word.
+    setHintWord(unfound[0]);
     setHintStep(1);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [board, won, found, hintWord, hintStep]);
@@ -223,7 +228,7 @@ export default function Wend() {
       />
 
       <div className="mt-5 flex items-center justify-between">
-        <DifficultyTabs value={difficulty} onChange={setDifficulty} accent={SKY} />
+        <DifficultyTabs value={difficulty} onChange={setDifficulty} accent={SKY} disabled={loading} />
         <TimerBadge ms={timer.ms} best={best} />
       </div>
 

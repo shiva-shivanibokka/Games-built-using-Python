@@ -41,6 +41,12 @@ export default function TicTacToe() {
     if (saved) setRecord(JSON.parse(saved));
   }, []);
 
+  // Start the clock on the first game (later games restart it via reset()).
+  useEffect(() => {
+    timer.restart();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
   const bump = useCallback((key: "w" | "l" | "d") => {
     setRecord((r) => {
       const next = { ...r, [key]: r[key] + 1 };

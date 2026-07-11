@@ -136,9 +136,15 @@ export default function Sudoku() {
     []
   );
 
-  // Digits placed 9 times are complete and get retired from entry.
+  // A digit is "done" only when all nine of its CORRECT cells are filled, so a
+  // wrong placement can never soft-lock a digit out of the pad/keyboard.
   const digitCounts: Record<string, number> = {};
-  for (const v of values) if (v) digitCounts[v] = (digitCounts[v] || 0) + 1;
+  if (puzzle) {
+    for (let i = 0; i < values.length; i++) {
+      const v = values[i];
+      if (v && v === puzzle.solution[i]) digitCounts[v] = (digitCounts[v] || 0) + 1;
+    }
+  }
   const isComplete = (d: string) => (digitCounts[d] || 0) >= 9;
 
   const onKey = useCallback(
@@ -146,7 +152,10 @@ export default function Sudoku() {
       if (selected == null) return;
       const k = e.key;
       if (k >= "1" && k <= "9") {
-        if (values.filter((v) => v === k).length < 9) setCell(selected, k);
+        const done =
+          !!puzzle &&
+          values.reduce((n, v, i) => n + (v === k && puzzle.solution[i] === k ? 1 : 0), 0) >= 9;
+        if (!done) setCell(selected, k);
         e.preventDefault();
       } else if (k === "Backspace" || k === "Delete" || k === "0") {
         setCell(selected, "");
@@ -165,7 +174,7 @@ export default function Sudoku() {
         e.preventDefault();
       }
     },
-    [selected, setCell, move, values]
+    [selected, setCell, move, values, puzzle]
   );
 
   // Conflict set: cells whose value duplicates a peer's value.
