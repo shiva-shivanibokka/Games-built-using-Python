@@ -256,7 +256,16 @@ export default function Zip() {
           style={{ zIndex: 2 }}
         >
           <defs>
-            <linearGradient id="zip-trail" x1="0" y1="0" x2="1" y2="1">
+            {/* userSpaceOnUse so a straight (zero-bbox) segment still paints —
+                an objectBoundingBox gradient goes invisible on axis-aligned lines. */}
+            <linearGradient
+              id="zip-trail"
+              gradientUnits="userSpaceOnUse"
+              x1="0"
+              y1="0"
+              x2="100%"
+              y2="100%"
+            >
               <stop offset="0%" stopColor={GREEN} />
               <stop offset="100%" stopColor={TEAL} />
             </linearGradient>
