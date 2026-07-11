@@ -1,9 +1,15 @@
-name: CI
+name: CI / CD
 
 on:
   push:
     branches: [main]
   pull_request:
+
+# Project identifiers (not secret — these are visible in the Vercel dashboard/URL).
+# The only secret you must add is VERCEL_TOKEN.
+env:
+  VERCEL_ORG_ID: team_6CYVQkfO3RB9C6WBbX4vNPvi
+  VERCEL_PROJECT_ID: prj_XsRiFpby37KRBsAI8OPqUkClX26m
 
 jobs:
   python-tests:
@@ -32,3 +38,38 @@ jobs:
         run: npm ci
       - name: Build
         run: npm run build
+
+  # Deploy only after tests + build pass. Production on main, preview on PRs.
+  # Skips gracefully (green, no-op) until the VERCEL_TOKEN secret is configured.
+  deploy:
+    name: Deploy to Vercel
+    needs: [python-tests, web-build]
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check for VERCEL_TOKEN
+        id: token
+        run: |
+          if [ -n "${{ secrets.VERCEL_TOKEN }}" ]; then
+            echo "present=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "present=false" >> "$GITHUB_OUTPUT"
+            echo "::notice::VERCEL_TOKEN secret not set — skipping deploy. Add it under Settings → Secrets and variables → Actions to enable GitHub-Actions deploys."
+          fi
+      - uses: actions/checkout@v4
+        if: steps.token.outputs.present == 'true'
+      - uses: actions/setup-node@v4
+        if: steps.token.outputs.present == 'true'
+        with:
+          node-version: "20"
+      - name: Install Vercel CLI
+        if: steps.token.outputs.present == 'true'
+        run: npm i -g vercel@latest
+      - name: Pull Vercel config
+        if: steps.token.outputs.present == 'true'
+        run: vercel pull --yes --token=${{ secrets.VERCEL_TOKEN }} --environment=${{ github.ref == 'refs/heads/main' && 'production' || 'preview' }}
+      - name: Build with Vercel
+        if: steps.token.outputs.present == 'true'
+        run: vercel build ${{ github.ref == 'refs/heads/main' && '--prod' || '' }} --token=${{ secrets.VERCEL_TOKEN }}
+      - name: Deploy to Vercel
+        if: steps.token.outputs.present == 'true'
+        run: vercel deploy --prebuilt ${{ github.ref == 'refs/heads/main' && '--prod' || '' }} --token=${{ secrets.VERCEL_TOKEN }}
