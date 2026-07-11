@@ -1,0 +1,3 @@
+# Runtime deps for the Vercel Python serverless functions (api/*.py).
+# Tic-Tac-Toe / Sudoku / Tango / Zip generators are pure standard library.
+# Dev-only: pytest (see below), not needed at runtime.
