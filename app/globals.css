@@ -100,26 +100,26 @@ body {
 @keyframes winglow {
   0%, 100% {
     box-shadow:
-      0 0 0 1px color-mix(in srgb, var(--win, #22c55e) 45%, transparent),
-      0 0 22px 2px color-mix(in srgb, var(--win, #22c55e) 28%, transparent);
+      0 0 0 2px color-mix(in srgb, var(--win, #22c55e) 45%, transparent),
+      0 0 30px 5px color-mix(in srgb, var(--win, #22c55e) 30%, transparent);
   }
   50% {
     box-shadow:
-      0 0 0 2px color-mix(in srgb, var(--win, #22c55e) 85%, transparent),
-      0 0 60px 12px color-mix(in srgb, var(--win, #22c55e) 55%, transparent);
+      0 0 0 3px color-mix(in srgb, var(--win, #22c55e) 85%, transparent),
+      0 0 74px 17px color-mix(in srgb, var(--win, #22c55e) 55%, transparent);
   }
 }
 
 .win-glow {
   border-radius: 1.5rem;
   /* Static fallback for browsers without color-mix(); the keyframe overrides it. */
-  box-shadow: 0 0 40px 4px rgba(160, 140, 255, 0.4);
+  box-shadow: 0 0 50px 7px rgba(160, 140, 255, 0.4);
   animation: winglow 1.5s ease-in-out infinite;
 }
 
 @media (prefers-reduced-motion: reduce) {
   .win-glow {
     animation: none;
-    box-shadow: 0 0 40px 4px color-mix(in srgb, var(--win, #22c55e) 45%, transparent);
+    box-shadow: 0 0 50px 7px color-mix(in srgb, var(--win, #22c55e) 45%, transparent);
   }
 }

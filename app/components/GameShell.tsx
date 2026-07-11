@@ -53,7 +53,7 @@ export default function GameShell({
       )}
 
       <div
-        className={won ? "win-glow" : undefined}
+        className={won ? "win-glow p-6" : undefined}
         style={won && game ? ({ "--win": game.gradient[0] } as CSSProperties) : undefined}
       >
         {children}
