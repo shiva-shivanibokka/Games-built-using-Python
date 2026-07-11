@@ -61,7 +61,12 @@ def generate(seed=None) -> dict:
     # Drop givens (all edges present) then edges — keep only clues that carry
     # uniqueness. Starting from the full grid the puzzle is always unique, so
     # every removal is guarded and generation always terminates uniquely.
+    # Keep a floor of prefilled cells so the board feels like a real Tango
+    # (several givens + a few signs) rather than an all-edges puzzle.
+    floor_givens = 6
     for g in list(givens):
+        if len(givens) <= floor_givens:
+            break
         trial = [x for x in givens if x is not g]
         if count_solutions(trial, edges, cap=2) == 1:
             givens = trial
