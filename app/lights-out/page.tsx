@@ -13,6 +13,7 @@ export default function LightsOut() {
   const [size, setSize] = useState(5);
   const [cells, setCells] = useState<number[]>([]);
   const [solution, setSolution] = useState<number[]>([]);
+  const [pressed, setPressed] = useState<number[]>([]);
   const [moves, setMoves] = useState(0);
   const [loading, setLoading] = useState(true);
   const [solved, setSolved] = useState(0);
@@ -33,6 +34,7 @@ export default function LightsOut() {
       setSize(data.size);
       setCells(data.board);
       setSolution(data.solution);
+      setPressed(new Array(data.board.length).fill(0));
       setMoves(0);
     } catch {
       // API unreachable — leave prior board; user can retry New game.
@@ -67,6 +69,11 @@ export default function LightsOut() {
       if (won || loading) return;
       setHint(null);
       setMoves((m) => m + 1);
+      setPressed((p) => {
+        const n = [...p];
+        n[i] ^= 1;
+        return n;
+      });
       setCells((prev) => {
         const next = [...prev];
         const r = Math.floor(i / size);
@@ -87,13 +94,13 @@ export default function LightsOut() {
     [won, loading, size]
   );
 
-  // Hint: a cell in the fetched solution that is still lit — a nudge toward the
-  // canonical press set. ponytail: from the original solution, not recomputed for
-  // the current board, so it's a guide rather than a guaranteed optimal next move.
+  // Hint: a cell that still needs pressing to finish. Over GF(2) the remaining
+  // press set is solution XOR the presses made so far, so this stays correct
+  // no matter what order (or how many extra) moves the player has made.
   const showHint = useCallback(() => {
-    const target = solution.findIndex((p, i) => p === 1 && cells[i] === 1);
-    setHint(target >= 0 ? target : solution.findIndex((p) => p === 1));
-  }, [solution, cells]);
+    const target = solution.findIndex((p, i) => (p ^ (pressed[i] ?? 0)) === 1);
+    setHint(target);
+  }, [solution, pressed]);
 
   const status = won
     ? "All dark! 🎉 Nicely done."
@@ -141,10 +148,9 @@ export default function LightsOut() {
               className="rounded-xl transition-all duration-150 enabled:hover:scale-105 enabled:active:scale-95 disabled:cursor-not-allowed"
               style={{
                 aspectRatio: "1",
-                backgroundImage: on ? GRAD : undefined,
-                background: on ? undefined : "rgba(120,120,120,0.14)",
+                background: on ? GRAD : "rgba(120,120,120,0.1)",
                 boxShadow: on
-                  ? "0 0 18px -2px rgba(234,179,8,0.7)"
+                  ? "0 0 26px 1px rgba(234,179,8,0.65), inset 0 0 14px rgba(255,255,255,0.35)"
                   : "inset 0 0 0 1px var(--border)",
                 outline: isHint ? `3px solid ${LIT}` : undefined,
                 outlineOffset: isHint ? "2px" : undefined,
