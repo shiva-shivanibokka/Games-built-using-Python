@@ -117,13 +117,15 @@ export default function TicTacToe() {
       ? "You win! 🎉"
       : "The AI takes it."
     : draw
-      ? "Draw — the only way to survive."
+      ? difficulty === "hard"
+        ? "Draw — the best you can do against perfect play."
+        : "Draw — but this level was winnable."
       : busy
         ? "AI thinking…"
         : "Your move";
 
   return (
-    <GameShell slug="tic-tac-toe">
+    <GameShell slug="tic-tac-toe" won={win === HUMAN}>
       <Scoreboard
         stats={[
           { label: "You", value: record.w, color: X_COLOR },

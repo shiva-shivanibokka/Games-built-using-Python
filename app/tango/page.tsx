@@ -169,7 +169,7 @@ export default function Tango() {
         : "Fill the grid: 3 suns, 3 moons per line.";
 
   return (
-    <GameShell slug="tango">
+    <GameShell slug="tango" won={won}>
       <Scoreboard
         stats={[{ label: "Solved", value: solved, color: SUN }]}
         onClear={() => {

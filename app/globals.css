@@ -95,3 +95,29 @@ body {
   outline-offset: 2px;
   border-radius: 4px;
 }
+
+/* Celebratory glow around a solved game. `--win` carries the game's accent. */
+@keyframes winglow {
+  0%, 100% {
+    box-shadow:
+      0 0 0 1px color-mix(in srgb, var(--win, #22c55e) 45%, transparent),
+      0 0 22px 2px color-mix(in srgb, var(--win, #22c55e) 28%, transparent);
+  }
+  50% {
+    box-shadow:
+      0 0 0 2px color-mix(in srgb, var(--win, #22c55e) 85%, transparent),
+      0 0 60px 12px color-mix(in srgb, var(--win, #22c55e) 55%, transparent);
+  }
+}
+
+.win-glow {
+  border-radius: 1.5rem;
+  animation: winglow 1.5s ease-in-out infinite;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .win-glow {
+    animation: none;
+    box-shadow: 0 0 40px 4px color-mix(in srgb, var(--win, #22c55e) 45%, transparent);
+  }
+}

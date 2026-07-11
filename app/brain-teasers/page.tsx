@@ -103,7 +103,7 @@ export default function BrainTeasers() {
       : "Pick the answer";
 
   return (
-    <GameShell slug="brain-teasers">
+    <GameShell slug="brain-teasers" won={locked && selected === teaser?.answer}>
       <Scoreboard
         stats={[
           { label: "Correct", value: correct, color: PURPLE },

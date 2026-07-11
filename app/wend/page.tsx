@@ -36,7 +36,10 @@ export default function Wend() {
   const [found, setFound] = useState<Found[]>([]);
   const [solved, setSolved] = useState(0);
   const [won, setWon] = useState(false);
-  const [hint, setHint] = useState<number | null>(null);
+  // Progressive hint: which word slot is being revealed, and how many of its
+  // letters (path cells) are shown so far. hintStep 0 == no active hint.
+  const [hintWord, setHintWord] = useState<number | null>(null);
+  const [hintStep, setHintStep] = useState(0);
   const [difficulty, setDifficulty] = useState<Difficulty>("medium");
   const [best, setBest] = useState<number | null>(null);
   const timer = useTimer();
@@ -57,7 +60,8 @@ export default function Wend() {
       setTrace([]);
       setFound([]);
       setWon(false);
-      setHint(null);
+      setHintWord(null);
+      setHintStep(0);
       try {
         const res = await fetch(`/api/wend?seed=${s}&difficulty=${difficulty}`);
         setBoard(await res.json());
@@ -138,12 +142,9 @@ export default function Wend() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [found, board, won]);
 
-  // Hint: highlight the starting cell of a still-unfound word. Tapping again
-  // cycles to the next unfound word's start. Cleared once that word is found.
-  const startCell = (i: number) => {
-    const [r, c] = board!.solution[i][0];
-    return r * size + c;
-  };
+  // Progressive hint: each press reveals the next letter along the SAME word's
+  // solution path. When a word is fully revealed (or gets found), the next
+  // press advances to another still-unfound word.
   const showHint = useCallback(() => {
     if (!board || won) return;
     const foundWords = new Set(found.map((f) => f.word));
@@ -151,20 +152,37 @@ export default function Wend() {
       .map((_, i) => i)
       .filter((i) => !foundWords.has(board.words[i]));
     if (unfound.length === 0) return;
-    let next = unfound[0];
-    if (hint != null) {
-      const cur = unfound.find((i) => startCell(i) === hint);
-      if (cur != null)
-        next = unfound[(unfound.indexOf(cur) + 1) % unfound.length];
+    // Keep advancing the current word while it's unfound and not fully shown.
+    if (
+      hintWord != null &&
+      unfound.includes(hintWord) &&
+      hintStep < board.words[hintWord].length
+    ) {
+      setHintStep((s) => s + 1);
+      return;
     }
-    setHint(startCell(next));
+    // Otherwise move to the next unfound word and reveal its first letter.
+    const start = hintWord != null ? unfound.indexOf(hintWord) : -1;
+    const next = unfound[(start + 1) % unfound.length];
+    setHintWord(next);
+    setHintStep(1);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [board, won, found, hint, size]);
+  }, [board, won, found, hintWord, hintStep]);
 
-  // Drop the hint once the cell it points at has been claimed by a found word.
+  // Drop the active hint once its word has been found.
   useEffect(() => {
-    if (hint != null && found.some((f) => f.cells.includes(hint))) setHint(null);
-  }, [found, hint]);
+    if (hintWord != null && found.some((f) => f.word === board?.words[hintWord])) {
+      setHintWord(null);
+      setHintStep(0);
+    }
+  }, [found, hintWord, board]);
+
+  // Grid cells currently revealed by the active hint (path prefix of the word).
+  const hintSet = new Set(
+    hintWord != null && board
+      ? board.solution[hintWord].slice(0, hintStep).map(([r, c]) => r * size + c)
+      : []
+  );
 
   const cellFromPoint = (x: number, y: number): number | null => {
     const el = document.elementFromPoint(x, y) as HTMLElement | null;
@@ -195,7 +213,7 @@ export default function Wend() {
         : `${found.length} / ${board.words.length} words found`;
 
   return (
-    <GameShell slug="wend">
+    <GameShell slug="wend" won={won}>
       <Scoreboard
         stats={[{ label: "Solved", value: solved, color: SKY }]}
         onClear={() => {
@@ -218,29 +236,33 @@ export default function Wend() {
         </span>
       </div>
 
-      {/* Word slots — one per word in this puzzle (count and lengths vary). */}
-      <div className="mt-4 flex flex-wrap gap-2">
+      {/* Letter boxes — one row per word, one square tile per letter, so each
+          word's length is obvious. Empty until found; revealed letters (found
+          or hinted) fill with the sky→indigo accent. */}
+      <div className="mt-4 flex flex-col gap-1.5">
         {(board?.words ?? []).map((word, slot) => {
           const hit = found.find((f) => f.word === word);
+          const hinting = hintWord === slot;
           return (
-            <div
-              key={slot}
-              className="pop-card flex items-center gap-1 px-3 py-1.5"
-              style={hit ? { borderColor: SLOT_COLORS[slot] } : undefined}
-            >
-              {hit ? (
-                <span
-                  className="font-display font-extrabold tracking-widest"
-                  style={{ color: SLOT_COLORS[slot] }}
-                >
-                  {hit.word}
-                </span>
-              ) : (
-                <span className="font-display tracking-widest text-muted">
-                  {"·".repeat(word.length)}
-                </span>
-              )}
-              <span className="ml-1 text-[10px] text-muted">{word.length}</span>
+            <div key={slot} className="flex flex-wrap gap-1.5">
+              {Array.from({ length: word.length }, (_, i) => {
+                const revealed = !!hit || (hinting && i < hintStep);
+                const isTip = hinting && !hit && i === hintStep - 1;
+                return (
+                  <div
+                    key={i}
+                    className="flex h-8 w-8 items-center justify-center rounded-md text-sm font-display font-extrabold sm:h-9 sm:w-9"
+                    style={{
+                      background: revealed ? GRADIENT : "var(--card)",
+                      color: revealed ? "#fff" : undefined,
+                      border: revealed ? "none" : "1px solid var(--border)",
+                      boxShadow: isTip ? `0 0 0 2px ${INDIGO}` : undefined,
+                    }}
+                  >
+                    {revealed ? word[i] : ""}
+                  </div>
+                );
+              })}
             </div>
           );
         })}
@@ -259,7 +281,7 @@ export default function Wend() {
           const locked = colorOf(idx);
           const inTrace = traceSet.has(idx);
           const isHead = trace[trace.length - 1] === idx;
-          const isHint = hint === idx;
+          const isHint = hintSet.has(idx);
           return (
             <button
               key={idx}
@@ -319,7 +341,8 @@ export default function Wend() {
             setFound([]);
             setTrace([]);
             setWon(false);
-            setHint(null);
+            setHintWord(null);
+            setHintStep(0);
           }}
           className="rounded-full border border-border px-5 py-2.5 text-sm font-medium transition-colors hover:border-foreground/30"
         >

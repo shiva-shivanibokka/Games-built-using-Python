@@ -129,7 +129,7 @@ export default function LightsOut() {
       : "Turn every light off";
 
   return (
-    <GameShell slug="lights-out">
+    <GameShell slug="lights-out" won={won}>
       <Scoreboard
         stats={[
           { label: "Solved", value: solved, color: LIT },

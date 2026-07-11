@@ -190,7 +190,7 @@ export default function Sudoku() {
       : "Fill every row, column, and box with 1–9";
 
   return (
-    <GameShell slug="sudoku">
+    <GameShell slug="sudoku" won={won}>
       <Scoreboard
         stats={[
           { label: "Solved", value: solved, color: ACCENT },

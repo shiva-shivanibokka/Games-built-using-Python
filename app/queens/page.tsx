@@ -178,7 +178,7 @@ export default function Queens() {
       : `Place ${n} crowns — one per row, column & color, none touching.`;
 
   return (
-    <GameShell slug="queens">
+    <GameShell slug="queens" won={won}>
       <Scoreboard
         stats={[{ label: "Solved", value: solved, color: ACCENT }]}
         onClear={() => {

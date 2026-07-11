@@ -183,7 +183,7 @@ export default function Zip() {
           : `${path.length} / ${size * size} cells`;
 
   return (
-    <GameShell slug="zip">
+    <GameShell slug="zip" won={won}>
       <Scoreboard
         stats={[{ label: "Solved", value: solved, color: GREEN }]}
         onClear={() => {

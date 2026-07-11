@@ -18,15 +18,15 @@ export const GAMES: Game[] = [
   {
     slug: "tic-tac-toe",
     name: "Tic-Tac-Toe",
-    tagline: "Face an unbeatable minimax AI. Best you can do is a draw.",
+    tagline: "Beat the AI on Easy — or just try to draw perfect play on Hard.",
     emoji: "⭕",
     status: "live",
     gradient: ["#7c3aed", "#ec4899"],
     rules: [
       "You are X; the AI is O. Tap an empty cell to place your mark.",
       "Get three in a row — across, down, or diagonally — to win.",
-      "The AI plays perfectly, so a draw is the best you can force.",
-      "Hint outlines your strongest move.",
+      "Easy and Medium are beatable; Hard plays perfect minimax, so aim for a draw.",
+      "Hint always outlines the perfect move.",
     ],
   },
   {

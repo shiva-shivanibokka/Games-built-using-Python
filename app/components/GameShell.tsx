@@ -1,16 +1,20 @@
+import type { CSSProperties } from "react";
 import { gameBySlug, gradientOf } from "../games";
 
-/** Consistent themed header + "How to play" for a game page. */
+/** Consistent themed header + "How to play" for a game page.
+ *  Pass `won` to wrap the game in a celebratory glow when solved. */
 export default function GameShell({
   slug,
   children,
+  won = false,
 }: {
   slug: string;
   children: React.ReactNode;
+  won?: boolean;
 }) {
   const game = gameBySlug(slug);
   return (
-    <div className="max-w-lg mx-auto">
+    <div className="max-w-2xl mx-auto">
       <header className="mb-4">
         <h1
           className="font-display text-4xl font-extrabold tracking-tight gradient-text w-fit"
@@ -48,7 +52,12 @@ export default function GameShell({
         </details>
       )}
 
-      {children}
+      <div
+        className={won ? "win-glow" : undefined}
+        style={won && game ? ({ "--win": game.gradient[0] } as CSSProperties) : undefined}
+      >
+        {children}
+      </div>
     </div>
   );
 }

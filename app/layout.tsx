@@ -23,10 +23,10 @@ export default function RootLayout({ children }: Readonly<{ children: React.Reac
       lang="en"
       className={`${geistSans.variable} ${geistMono.variable} ${bricolage.variable} h-full antialiased`}
     >
-      <body className="min-h-full flex flex-col">
+      <body className="min-h-full flex flex-col overflow-x-hidden">
         <div className="aurora" aria-hidden />
         <NavBar />
-        <main className="flex-1 w-full max-w-5xl mx-auto px-4 py-10">{children}</main>
+        <main className="flex-1 w-full max-w-5xl mx-auto px-4 py-8">{children}</main>
         <footer className="py-8 text-center text-sm text-muted">
           Built with Python + Next.js · every board generated live by a Python API
         </footer>
