@@ -44,6 +44,30 @@ export const GAMES: Game[] = [
     status: "live",
     gradient: ["#22c55e", "#14b8a6"],
   },
+  {
+    slug: "queens",
+    name: "Queens",
+    tagline: "One crown per row, column, and color — none touching.",
+    emoji: "👑",
+    status: "live",
+    gradient: ["#f43f5e", "#a21caf"],
+  },
+  {
+    slug: "wend",
+    name: "Wend",
+    tagline: "Trace four hidden words that tile the whole grid.",
+    emoji: "🔤",
+    status: "live",
+    gradient: ["#0ea5e9", "#6366f1"],
+  },
+  {
+    slug: "lights-out",
+    name: "Lights Out",
+    tagline: "Flip the grid dark. Every tap toggles its neighbors.",
+    emoji: "💡",
+    status: "live",
+    gradient: ["#eab308", "#84cc16"],
+  },
 ];
 
 export const gameBySlug = (slug: string) => GAMES.find((g) => g.slug === slug);
