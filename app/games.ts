@@ -68,6 +68,14 @@ export const GAMES: Game[] = [
     status: "live",
     gradient: ["#eab308", "#84cc16"],
   },
+  {
+    slug: "brain-teasers",
+    name: "Brain Teasers",
+    tagline: "Sequences, cryptarithms, logic — one right answer, generated fresh.",
+    emoji: "🧠",
+    status: "live",
+    gradient: ["#a855f7", "#6366f1"],
+  },
 ];
 
 export const gameBySlug = (slug: string) => GAMES.find((g) => g.slug === slug);

@@ -30,6 +30,7 @@ export default function TicTacToe() {
   const [board, setBoard] = useState<Cell[]>(EMPTY);
   const [busy, setBusy] = useState(false);
   const [record, setRecord] = useState(BLANK);
+  const [hint, setHint] = useState<number | null>(null);
 
   useEffect(() => {
     const saved = localStorage.getItem("ttt-record");
@@ -79,6 +80,7 @@ export default function TicTacToe() {
 
   function play(i: number) {
     if (board[i] || over || busy) return;
+    setHint(null);
     const next = [...board];
     next[i] = HUMAN;
     setBoard(next);
@@ -86,9 +88,23 @@ export default function TicTacToe() {
   }
 
   function reset(aiFirst = false) {
+    setHint(null);
     setBoard(EMPTY);
     if (aiFirst) aiMove(EMPTY);
   }
+
+  // Hint: ask the API for X's optimal move and highlight it (don't auto-play).
+  const showHint = useCallback(async () => {
+    if (over || busy) return;
+    try {
+      const encoded = board.map((c) => c || "-").join("");
+      const res = await fetch(`/api/tic-tac-toe?board=${encoded}&ai=${HUMAN}`);
+      const data: { move: number | null } = await res.json();
+      if (data.move != null) setHint(data.move);
+    } catch {
+      // API unreachable — no hint.
+    }
+  }, [board, over, busy]);
 
   const status = win
     ? win === HUMAN
@@ -138,6 +154,8 @@ export default function TicTacToe() {
                 disabled:cursor-not-allowed ${winning ? "scale-[1.03]" : ""}`}
               style={{
                 color: c === "X" ? X_COLOR : O_COLOR,
+                outline: hint === i ? `3px solid ${X_COLOR}` : undefined,
+                outlineOffset: hint === i ? "2px" : undefined,
                 boxShadow: winning
                   ? `0 0 0 2px ${c === "X" ? X_COLOR : O_COLOR}, 0 12px 40px -10px ${
                       c === "X" ? X_COLOR : O_COLOR
@@ -158,6 +176,13 @@ export default function TicTacToe() {
           style={{ backgroundImage: "linear-gradient(135deg,#7c3aed,#ec4899)" }}
         >
           New game
+        </button>
+        <button
+          onClick={showHint}
+          disabled={over || busy}
+          className="rounded-full border border-border px-5 py-2.5 text-sm font-medium transition-colors hover:border-foreground/30 disabled:opacity-50"
+        >
+          Hint
         </button>
         <button
           onClick={() => reset(true)}

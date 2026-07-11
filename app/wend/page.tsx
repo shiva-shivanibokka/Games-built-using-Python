@@ -18,8 +18,8 @@ type Found = { word: string; cells: number[]; color: string };
 const SKY = "#0ea5e9";
 const INDIGO = "#6366f1";
 const GRADIENT = "linear-gradient(135deg,#0ea5e9,#6366f1)";
-// One color per word slot (lengths 3 / 4 / 5 / 6).
-const SLOT_COLORS = ["#0ea5e9", "#6366f1", "#22c55e", "#f59e0b"];
+// One color per word slot (up to 5 words per puzzle).
+const SLOT_COLORS = ["#0ea5e9", "#6366f1", "#22c55e", "#f59e0b", "#ec4899"];
 
 const rc = (idx: number, size: number) => [Math.floor(idx / size), idx % size];
 const adjacent = (a: number, b: number, size: number) => {
@@ -34,6 +34,7 @@ export default function Wend() {
   const [found, setFound] = useState<Found[]>([]);
   const [solved, setSolved] = useState(0);
   const [won, setWon] = useState(false);
+  const [hint, setHint] = useState<number | null>(null);
   const drawing = useRef(false);
 
   useEffect(() => {
@@ -46,6 +47,7 @@ export default function Wend() {
     setTrace([]);
     setFound([]);
     setWon(false);
+    setHint(null);
     try {
       const res = await fetch(`/api/wend?seed=${s}`);
       setBoard(await res.json());
@@ -106,10 +108,10 @@ export default function Wend() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [board, found]);
 
-  // Win when all four words are found (they tile every open cell by construction).
+  // Win when every word is found (they tile every open cell by construction).
   useEffect(() => {
     if (!board || won) return;
-    if (found.length === 4) {
+    if (found.length === board.words.length) {
       setWon(true);
       setSolved((s) => {
         const next = s + 1;
@@ -118,6 +120,34 @@ export default function Wend() {
       });
     }
   }, [found, board, won]);
+
+  // Hint: highlight the starting cell of a still-unfound word. Tapping again
+  // cycles to the next unfound word's start. Cleared once that word is found.
+  const startCell = (i: number) => {
+    const [r, c] = board!.solution[i][0];
+    return r * size + c;
+  };
+  const showHint = useCallback(() => {
+    if (!board || won) return;
+    const foundWords = new Set(found.map((f) => f.word));
+    const unfound = board.words
+      .map((_, i) => i)
+      .filter((i) => !foundWords.has(board.words[i]));
+    if (unfound.length === 0) return;
+    let next = unfound[0];
+    if (hint != null) {
+      const cur = unfound.find((i) => startCell(i) === hint);
+      if (cur != null)
+        next = unfound[(unfound.indexOf(cur) + 1) % unfound.length];
+    }
+    setHint(startCell(next));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [board, won, found, hint, size]);
+
+  // Drop the hint once the cell it points at has been claimed by a found word.
+  useEffect(() => {
+    if (hint != null && found.some((f) => f.cells.includes(hint))) setHint(null);
+  }, [found, hint]);
 
   const cellFromPoint = (x: number, y: number): number | null => {
     const el = document.elementFromPoint(x, y) as HTMLElement | null;
@@ -145,7 +175,7 @@ export default function Wend() {
       ? "Solved! Every word placed. 🎉"
       : found.length === 0
         ? "Drag across letters to trace a hidden word."
-        : `${found.length} / 4 words found`;
+        : `${found.length} / ${board.words.length} words found`;
 
   return (
     <GameShell slug="wend">
@@ -166,13 +196,13 @@ export default function Wend() {
         </span>
       </div>
 
-      {/* Word-length slots */}
+      {/* Word slots — one per word in this puzzle (count and lengths vary). */}
       <div className="mt-4 flex flex-wrap gap-2">
-        {[3, 4, 5, 6].map((len, slot) => {
-          const hit = found.find((f) => f.word.length === len);
+        {(board?.words ?? []).map((word, slot) => {
+          const hit = found.find((f) => f.word === word);
           return (
             <div
-              key={len}
+              key={slot}
               className="pop-card flex items-center gap-1 px-3 py-1.5"
               style={hit ? { borderColor: SLOT_COLORS[slot] } : undefined}
             >
@@ -185,10 +215,10 @@ export default function Wend() {
                 </span>
               ) : (
                 <span className="font-display tracking-widest text-muted">
-                  {"·".repeat(len)}
+                  {"·".repeat(word.length)}
                 </span>
               )}
-              <span className="ml-1 text-[10px] text-muted">{len}</span>
+              <span className="ml-1 text-[10px] text-muted">{word.length}</span>
             </div>
           );
         })}
@@ -207,6 +237,7 @@ export default function Wend() {
           const locked = colorOf(idx);
           const inTrace = traceSet.has(idx);
           const isHead = trace[trace.length - 1] === idx;
+          const isHint = hint === idx;
           return (
             <button
               key={idx}
@@ -226,7 +257,11 @@ export default function Wend() {
                     : inTrace
                       ? GRADIENT
                       : undefined,
-                boxShadow: isHead ? `0 0 0 3px ${SKY}` : undefined,
+                boxShadow: isHead
+                  ? `0 0 0 3px ${SKY}`
+                  : isHint
+                    ? `0 0 0 3px ${INDIGO}`
+                    : undefined,
                 cursor: isWall ? "default" : "pointer",
               }}
             >
@@ -245,6 +280,13 @@ export default function Wend() {
           New game
         </button>
         <button
+          onClick={showHint}
+          disabled={won || !board || found.length === board.words.length}
+          className="rounded-full border border-border px-5 py-2.5 text-sm font-medium transition-colors hover:border-foreground/30 disabled:opacity-50"
+        >
+          Hint
+        </button>
+        <button
           onClick={() => setTrace([])}
           className="rounded-full border border-border px-5 py-2.5 text-sm font-medium transition-colors hover:border-foreground/30"
         >
@@ -255,6 +297,7 @@ export default function Wend() {
             setFound([]);
             setTrace([]);
             setWon(false);
+            setHint(null);
           }}
           className="rounded-full border border-border px-5 py-2.5 text-sm font-medium transition-colors hover:border-foreground/30"
         >

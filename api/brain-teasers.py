@@ -1,13 +1,8 @@
-"""Vercel Python serverless function: Wend puzzle generator.
+"""Vercel Python serverless function: Brain Teasers generator.
 
-GET /api/wend?seed=<int optional>
+GET /api/brain-teasers?seed=<int optional>&type=<sequences|cryptarithm|logic|oddoneout optional>
 
-Response JSON: { size, walls, letters, words, solution, seed }
-  size:     grid dimension N (4, 5, or 6 — varies per puzzle)
-  walls:    [r, c] blocked cells (count varies)
-  letters:  NxN grid of single uppercase letters ("" on walls)
-  words:    the solution words (3-5 of them), sorted by length
-  solution: one path ([r, c] per letter) per word, same order as words
+Response JSON: { type, prompt, options[4], answer, explanation, seed, kind }
 """
 
 import json
@@ -18,19 +13,20 @@ from urllib.parse import urlparse, parse_qs
 
 # Make the shared `games` package importable (repo root is this file's grandparent).
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-from games.wend import generate  # noqa: E402
+from games.brain_teasers import generate  # noqa: E402
 
 
 class handler(BaseHTTPRequestHandler):
     def do_GET(self):
         params = parse_qs(urlparse(self.path).query)
+        kind = params.get("type", [None])[0]
         raw_seed = params.get("seed", [None])[0]
         try:
             seed = int(raw_seed) if raw_seed is not None else None
         except ValueError:
             seed = None
 
-        result = generate(seed=seed)
+        result = generate(seed=seed, kind=kind)
         payload = json.dumps(result).encode()
         self.send_response(200)
         self.send_header("Content-Type", "application/json")

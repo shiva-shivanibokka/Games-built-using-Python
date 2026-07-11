@@ -36,6 +36,7 @@ export default function Sudoku() {
   const [loading, setLoading] = useState(true);
   const [solved, setSolved] = useState(0);
   const [mistakes, setMistakes] = useState(0);
+  const [hint, setHint] = useState<number | null>(null);
   const gridRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -99,6 +100,21 @@ export default function Sudoku() {
     },
     [given, won, puzzle]
   );
+
+  // Hint: fill one correct cell — the selected empty/wrong one, else the first
+  // empty cell. Uses the solution digit so it never counts as a mistake.
+  const showHint = useCallback(() => {
+    if (!puzzle || won || loading) return;
+    let target = selected;
+    if (target == null || given[target] || values[target] === puzzle.solution[target]) {
+      target = values.findIndex((v, i) => !given[i] && v === "");
+    }
+    if (target == null || target < 0) return;
+    setCell(target, puzzle.solution[target]);
+    setHint(target);
+    const t = target;
+    setTimeout(() => setHint((h) => (h === t ? null : h)), 1200);
+  }, [puzzle, won, loading, selected, given, values, setCell]);
 
   const move = useCallback(
     (i: number, dr: number, dc: number) => {
@@ -245,6 +261,8 @@ export default function Sudoku() {
                   r % 3 === 2 && r !== 8
                     ? "2px solid var(--foreground)"
                     : "1px solid var(--border)",
+                outline: hint === i ? `3px solid ${ACCENT}` : undefined,
+                outlineOffset: hint === i ? "2px" : undefined,
               }}
             >
               {val}
@@ -275,6 +293,13 @@ export default function Sudoku() {
           style={{ backgroundImage: GRAD }}
         >
           New game
+        </button>
+        <button
+          onClick={showHint}
+          disabled={won || loading}
+          className="rounded-full border border-border px-5 py-2.5 text-sm font-medium transition-colors hover:border-foreground/30 disabled:opacity-50"
+        >
+          Hint
         </button>
         <button
           onClick={() => selected != null && setCell(selected, "")}

@@ -71,6 +71,7 @@ export default function Tango() {
   const [board, setBoard] = useState<Val[]>([]);
   const [solved, setSolved] = useState(0);
   const [won, setWon] = useState(false);
+  const [hint, setHint] = useState<number | null>(null);
 
   useEffect(() => {
     const saved = localStorage.getItem("tango-solved");
@@ -80,6 +81,7 @@ export default function Tango() {
   const load = useCallback(async (seed: number) => {
     setPuzzle(null);
     setWon(false);
+    setHint(null);
     try {
       const res = await fetch(`/api/tango?seed=${seed}`);
       const data: Puzzle = await res.json();
@@ -119,11 +121,27 @@ export default function Tango() {
 
   function play(i: number) {
     if (won || givenSet.has(i)) return;
+    setHint(null);
     setBoard((b) => {
       const next = [...b];
       next[i] = next[i] === "" ? "S" : next[i] === "S" ? "M" : "";
       return next;
     });
+  }
+
+  // Hint: reveal one correct non-given cell (empty or wrong).
+  function showHint() {
+    if (!puzzle || won) return;
+    const target = board.findIndex(
+      (v, i) => !givenSet.has(i) && v !== (puzzle.solution[i] as Val),
+    );
+    if (target < 0) return;
+    setBoard((b) => {
+      const next = [...b];
+      next[target] = puzzle.solution[target] as Val;
+      return next;
+    });
+    setHint(target);
   }
 
   const status = win
@@ -179,6 +197,8 @@ export default function Tango() {
                         ? "rgba(255,255,255,0.06)"
                         : "transparent",
                     boxShadow: wrong ? "inset 0 0 0 2px #ef4444" : undefined,
+                    outline: hint === i ? `3px solid ${SUN}` : undefined,
+                    outlineOffset: hint === i ? "2px" : undefined,
                     cursor: fixed || won ? "default" : "pointer",
                   }}
                 >
@@ -222,7 +242,18 @@ export default function Tango() {
           New game
         </button>
         <button
-          onClick={() => puzzle && setBoard(boardFromGivens(puzzle.givens))}
+          onClick={showHint}
+          disabled={!puzzle || won}
+          className="rounded-full border border-border px-5 py-2.5 text-sm font-medium transition-colors hover:border-foreground/30 disabled:opacity-50"
+        >
+          Hint
+        </button>
+        <button
+          onClick={() => {
+            if (!puzzle) return;
+            setHint(null);
+            setBoard(boardFromGivens(puzzle.givens));
+          }}
           disabled={!puzzle || won}
           className="rounded-full border border-border px-5 py-2.5 text-sm font-medium transition-colors hover:border-foreground/30 disabled:opacity-50"
         >

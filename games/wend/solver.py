@@ -16,11 +16,7 @@ def verify(puzzle):
     solution = puzzle["solution"]
 
     open_cells = {(r, c) for r in range(size) for c in range(size)} - walls
-    if len(open_cells) != 18:
-        return False
-    if len(words) != 4 or len(solution) != 4:
-        return False
-    if [len(w) for w in words] != [3, 4, 5, 6]:
+    if not words or len(words) != len(solution):
         return False
 
     seen = set()

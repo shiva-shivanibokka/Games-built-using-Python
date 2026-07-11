@@ -1,21 +1,51 @@
-"""Wend puzzle generator.
+"""Wend puzzle generator (variable shapes).
 
-A 5x5 grid with 7 walls leaves 18 open cells. Four words of lengths 3, 4, 5, 6
-(3+4+5+6 = 18) each trace a self-avoiding path through orthogonally-adjacent
-open cells, and together the four paths tile every open cell.
+A puzzle is an NxN grid (N in 4/5/6) with some walls. The open cells are tiled
+by 3-5 words whose lengths (each 3-6) sum to the open-cell count. Each word
+traces a self-avoiding path through orthogonally-adjacent open cells, and the
+paths together cover every open cell exactly once.
 
-Strategy: grow the four paths directly on an empty grid (longest first) with a
-randomized backtracking walk. Whatever cells the walks don't cover become the
-7 walls. Then drop a real word of the matching length onto each path. Retry the
-whole layout with the same seeded RNG until every step succeeds — bounded, and
-in practice it lands within a handful of attempts.
+Strategy: from the seeded rng pick a size, a wall count, and a set of word
+lengths that sum to the open cells. Grow the paths directly on an empty grid
+(longest first) with a randomized backtracking walk; whatever cells the walks
+don't cover become the walls. Drop a real word of the matching length onto each
+path. Retry (re-picking the shape) until every step succeeds — bounded, and in
+practice it lands within a handful of attempts.
 """
 
 import random
 
-SIZE = 5
-LENGTHS = (6, 5, 4, 3)  # place longest first — it has the least room to fail
+SIZES = (4, 5, 6)
+MINLEN, MAXLEN = 3, 6  # words.py provides these lengths
 _DIRS = ((-1, 0), (1, 0), (0, -1), (0, 1))
+
+
+def _pick_shape(rng):
+    """Pick (size, lengths) — lengths in [3,6], count 3-5, summing to open cells."""
+    size = rng.choice(SIZES)
+    cells = size * size
+    walls = rng.randint(max(2, round(cells * 0.16)), round(cells * 0.34))
+    open_cells = cells - walls
+
+    # word count k so average length stays in [MINLEN, MAXLEN]; then clamp to 3-5.
+    kmin = -(-open_cells // MAXLEN)  # ceil(open / MAXLEN)
+    kmax = open_cells // MINLEN
+    lo, hi = max(3, kmin), min(5, kmax)
+    if lo > hi:  # infeasible against the 3-5 preference — fall back to raw bounds
+        lo, hi = kmin, kmax
+    k = rng.randint(lo, hi)
+
+    lengths = [MINLEN] * k
+    caps = [MAXLEN - MINLEN] * k
+    extra = open_cells - MINLEN * k
+    while extra > 0:
+        pool = [i for i in range(k) if caps[i] > 0]
+        i = rng.choice(pool)
+        lengths[i] += 1
+        caps[i] -= 1
+        extra -= 1
+    lengths.sort(reverse=True)  # place longest first — least room to fail
+    return size, lengths
 
 
 def _walk(rng, available, length):
@@ -48,11 +78,11 @@ def _walk(rng, available, length):
     return None
 
 
-def _layout(rng):
-    """One attempt: return list of paths (longest→shortest) tiling 18 cells, or None."""
-    available = {(r, c) for r in range(SIZE) for c in range(SIZE)}
+def _layout(rng, size, lengths):
+    """One attempt: return list of paths (longest→shortest) tiling the open cells, or None."""
+    available = {(r, c) for r in range(size) for c in range(size)}
     paths = []
-    for length in LENGTHS:
+    for length in lengths:
         path = _walk(rng, available, length)
         if path is None:
             return None
@@ -69,30 +99,36 @@ def generate(seed=None):
         seed = random.randrange(2 ** 31)
     rng = random.Random(seed)
 
-    paths = None
-    for _ in range(10000):
-        paths = _layout(rng)
+    size = paths = None
+    for _ in range(20000):
+        size, lengths = _pick_shape(rng)
+        paths = _layout(rng, size, lengths)
         if paths is not None:
             break
     if paths is None:  # pragma: no cover - astronomically unlikely
         raise RuntimeError("Wend: failed to lay out a puzzle")
 
-    # paths came out longest→shortest; pair each with a word and sort 3,4,5,6.
-    letters = [["" for _ in range(SIZE)] for _ in range(SIZE)]
+    # Pair each path with a distinct real word, then sort entries by length.
+    letters = [["" for _ in range(size)] for _ in range(size)]
     entries = []
+    used_words = set()
     for path in paths:
-        word = rng.choice(WORDS[len(path)])
+        choices = WORDS[len(path)]
+        word = rng.choice(choices)
+        while word in used_words:
+            word = rng.choice(choices)
+        used_words.add(word)
         for (r, c), ch in zip(path, word):
             letters[r][c] = ch
         entries.append((word, path))
     entries.sort(key=lambda e: len(e[0]))
 
     covered = {cell for path in paths for cell in path}
-    walls = sorted([r, c] for r in range(SIZE) for c in range(SIZE)
+    walls = sorted([r, c] for r in range(size) for c in range(size)
                    if (r, c) not in covered)
 
     return {
-        "size": SIZE,
+        "size": size,
         "walls": walls,
         "letters": letters,
         "words": [w for w, _ in entries],

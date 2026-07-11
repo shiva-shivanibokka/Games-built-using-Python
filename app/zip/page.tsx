@@ -23,6 +23,7 @@ export default function Zip() {
   const [path, setPath] = useState<number[]>([]);
   const [solved, setSolved] = useState(0);
   const [won, setWon] = useState(false);
+  const [hint, setHint] = useState<number | null>(null);
 
   const gridRef = useRef<HTMLDivElement>(null);
   const cellRefs = useRef<(HTMLButtonElement | null)[]>([]);
@@ -38,6 +39,7 @@ export default function Zip() {
     const s = seed ?? Math.floor(Math.random() * 2 ** 31);
     setPath([]);
     setWon(false);
+    setHint(null);
     try {
       const res = await fetch(`/api/zip?seed=${s}&size=6`);
       setBoard(await res.json());
@@ -78,6 +80,16 @@ export default function Zip() {
     },
     [board, won, startIdx]
   );
+
+  // Hint: highlight the next cell along the canonical solution — the cell after
+  // the longest prefix of the current path that matches the solution.
+  const showHint = useCallback(() => {
+    if (!board || won) return;
+    const sol = board.solution.map(([r, c]) => r * board.size + c);
+    let k = 0;
+    while (k < path.length && k < sol.length && path[k] === sol[k]) k++;
+    setHint(sol[Math.min(k, sol.length - 1)] ?? null);
+  }, [board, won, path]);
 
   // Detect a win: full coverage + checkpoints hit in ascending order.
   useEffect(() => {
@@ -128,6 +140,7 @@ export default function Zip() {
   };
   const onPointerDown = (e: React.PointerEvent, idx: number) => {
     e.preventDefault();
+    setHint(null);
     drawing.current = true;
     extend(idx);
   };
@@ -228,6 +241,8 @@ export default function Zip() {
                     ? "rgba(34,197,94,0.14)"
                     : undefined,
                 boxShadow: isHead ? `0 0 0 2px ${GREEN}` : undefined,
+                outline: hint === idx ? `3px solid ${GREEN}` : undefined,
+                outlineOffset: hint === idx ? "2px" : undefined,
               }}
             >
               {n ?? ""}
@@ -245,7 +260,15 @@ export default function Zip() {
           New game
         </button>
         <button
+          onClick={showHint}
+          disabled={!board || won}
+          className="rounded-full border border-border px-5 py-2.5 text-sm font-medium transition-colors hover:border-foreground/30 disabled:opacity-50"
+        >
+          Hint
+        </button>
+        <button
           onClick={() => {
+            setHint(null);
             setPath([]);
             setWon(false);
           }}

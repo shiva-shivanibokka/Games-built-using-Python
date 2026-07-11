@@ -19,6 +19,7 @@ export default function Queens() {
   const [selected, setSelected] = useState<number | null>(null);
   const [loading, setLoading] = useState(true);
   const [solved, setSolved] = useState(0);
+  const [hint, setHint] = useState<number | null>(null);
   const gridRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -29,6 +30,7 @@ export default function Queens() {
   const load = useCallback(async () => {
     setLoading(true);
     setSelected(null);
+    setHint(null);
     try {
       const seed = Math.floor(Math.random() * 1e9);
       const res = await fetch(`/api/queens?seed=${seed}&size=8`);
@@ -51,6 +53,7 @@ export default function Queens() {
   const cycle = useCallback(
     (i: number) => {
       if (!puzzle) return;
+      setHint(null);
       setMarks((prev) => {
         const next = [...prev];
         next[i] = ((prev[i] + 1) % 3) as Mark;
@@ -59,6 +62,21 @@ export default function Queens() {
     },
     [puzzle]
   );
+
+  // Hint: place a crown on one correct solution cell that isn't crowned yet.
+  const showHint = useCallback(() => {
+    if (!puzzle || loading) return;
+    const target = puzzle.solution
+      .map(([r, c]) => r * n + c)
+      .find((idx) => marks[idx] !== 2);
+    if (target == null) return;
+    setMarks((prev) => {
+      const next = [...prev];
+      next[target] = 2 as Mark;
+      return next;
+    });
+    setHint(target);
+  }, [puzzle, loading, n, marks]);
 
   // Crowns and which of them break a rule (row/col/region/touch).
   const crowns: number[] = [];
@@ -195,6 +213,8 @@ export default function Queens() {
                   aspectRatio: "1",
                   background: regionColor(region, n),
                   boxShadow: isSel ? "inset 0 0 0 3px var(--foreground)" : undefined,
+                  outline: hint === i ? `3px solid ${ACCENT}` : undefined,
+                  outlineOffset: hint === i ? "2px" : undefined,
                   borderRight:
                     c !== n - 1 && puzzle.regions[i + 1] !== region
                       ? "2px solid rgba(0,0,0,0.55)"
@@ -243,9 +263,18 @@ export default function Queens() {
           New game
         </button>
         <button
-          onClick={() =>
-            puzzle && setMarks(new Array(n * n).fill(0) as Mark[])
-          }
+          onClick={showHint}
+          disabled={!puzzle || loading || won}
+          className="rounded-full border border-border px-5 py-2.5 text-sm font-medium transition-colors hover:border-foreground/30 disabled:opacity-50"
+        >
+          Hint
+        </button>
+        <button
+          onClick={() => {
+            if (!puzzle) return;
+            setHint(null);
+            setMarks(new Array(n * n).fill(0) as Mark[]);
+          }}
           className="rounded-full border border-border px-5 py-2.5 text-sm font-medium transition-colors hover:border-foreground/30"
         >
           Reset board
