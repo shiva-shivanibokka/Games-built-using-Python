@@ -42,3 +42,8 @@ next-env.d.ts
 
 .vercel
 .env*
+
+# internal audit / planning docs — not for the public repo
+AUDIT.md
+PLAN.md
+docs/superpowers/
